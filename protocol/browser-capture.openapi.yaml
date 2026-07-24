@@ -57,7 +57,10 @@ components:
           uniqueItems: true
           items:
             type: string
-            enum:
+            description: |
+              Capability name. Known base capabilities are shown as examples;
+              additional names are additive and must be tolerated.
+            examples:
               - pairing
               - bookmark-lookup
               - capture-package

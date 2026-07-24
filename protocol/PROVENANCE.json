@@ -1,10 +1,10 @@
 {
   "sourceRepository": "TJennerjahn/Increader",
-  "sourceCommit": "2b1657afa4cdb910401d2d7745075d6a6493ab5f",
+  "sourceCommit": "a983485b5f3f987f74ad5812d5fe9056e98505f4",
   "generator": "openapi-typescript@7.13.0",
   "files": {
-    "browser-capture.openapi.yaml": "aa9ab3bfc6b137de4f6b2f9572cc2232c2faeebdab848018aff9287fb243ae07",
-    "fixtures/discovery.valid.json": "a092e0cbd5db779fb4d54920dfa607ffe05e9cae7d50755978a00ce8f857e377",
+    "browser-capture.openapi.yaml": "da0e09d1958f636d035b98cea4fbb979fe5b7b4c86632d477128dbdb0aac53a5",
+    "fixtures/discovery.valid.json": "8ee24a4ba26489e62f3cfc7042c473d5a8e209694e69e6af26704c35112c1f53",
     "fixtures/discovery.invalid.json": "e7e3cf868866c2ba51097b850e48e18cbb07e8a86351ce991eb56f4e0bfdfeeb"
   }
 }

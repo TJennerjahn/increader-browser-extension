@@ -5,7 +5,8 @@
   "capabilities": [
     "pairing",
     "bookmark-lookup",
-    "capture-package"
+    "capture-package",
+    "future-capture-hint"
   ],
   "limits": {
     "multipartRequestBytes": 67108864,

@@ -41,7 +41,7 @@ export interface components {
             /** @description Whether this instance currently accepts new pairings. */
             pairingAvailable: boolean;
             /** @description Additive Browser Capture operations advertised by the instance. */
-            capabilities: ("pairing" | "bookmark-lookup" | "capture-package")[];
+            capabilities: string[];
             limits: components["schemas"]["BrowserCaptureLimits"];
         } & {
             [key: string]: unknown;
