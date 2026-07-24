@@ -1,0 +1,8 @@
+{
+  "protocol": "another-product",
+  "displayName": "Not Increader",
+  "pairingAvailable": true,
+  "capabilities": [
+    "pairing"
+  ]
+}

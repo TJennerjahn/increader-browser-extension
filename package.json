@@ -1,0 +1,36 @@
+{
+  "name": "increader-browser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs --mode production",
+    "build:dev": "node scripts/build.mjs --mode development",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "protocol:generate": "openapi-typescript protocol/browser-capture.openapi.yaml -o src/protocol/generated/browser-capture.ts",
+    "protocol:check": "node scripts/check-protocol.mjs",
+    "inspect": "node scripts/inspect-build.mjs",
+    "web-ext:lint": "web-ext lint --source-dir dist/production/firefox --warnings-as-errors",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run protocol:check && npm run build:dev && npm run build && npm run inspect && npm run web-ext:lint"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/dom": "10.4.1",
+    "@types/chrome": "0.2.2",
+    "esbuild": "0.28.1",
+    "eslint": "10.8.0",
+    "fflate": "0.8.3",
+    "jsdom": "29.1.1",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10",
+    "web-ext": "10.5.0"
+  }
+}

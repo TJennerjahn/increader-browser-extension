@@ -1,0 +1,161 @@
+openapi: 3.1.0
+info:
+  title: Increader Browser Capture Protocol
+  version: unversioned
+  description: |
+    The additive wire contract shared by Increader Cloud, self-hosted
+    deployments, and the Increader Browser Extension. `info.version` is
+    OpenAPI metadata only: the Browser Capture Protocol and Capture Packages
+    deliberately have no schema-version field or versioned URL.
+paths:
+  /api/browser-capture/discovery:
+    get:
+      operationId: discoverBrowserCapture
+      summary: Discover Browser Capture support
+      description: |
+        Returns a public, non-User-specific description of this instance's
+        Browser Capture compatibility and effective limits. This is not an
+        operational health endpoint.
+      security: []
+      responses:
+        "200":
+          description: Compatible Browser Capture discovery document
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Discovery is returned with `no-store`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureDiscovery"
+components:
+  schemas:
+    BrowserCaptureDiscovery:
+      type: object
+      required:
+        - protocol
+        - displayName
+        - pairingAvailable
+        - capabilities
+        - limits
+      properties:
+        protocol:
+          type: string
+          const: increader-browser-capture
+          description: Stable protocol identity, not a schema version.
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Safe instance label suitable for compact extension UI.
+        pairingAvailable:
+          type: boolean
+          description: Whether this instance currently accepts new pairings.
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - pairing
+              - bookmark-lookup
+              - capture-package
+          description: Additive Browser Capture operations advertised by the instance.
+        limits:
+          $ref: "#/components/schemas/BrowserCaptureLimits"
+      additionalProperties: true
+    BrowserCaptureLimits:
+      type: object
+      required:
+        - multipartRequestBytes
+        - manifestBytes
+        - documentHtmlBytes
+        - domElements
+        - assetRecords
+        - binaryAssets
+        - assetBytes
+        - aggregateAssetBytes
+        - urlBytes
+        - titleCodePoints
+        - languageTagCharacters
+        - producerFieldCodePoints
+        - contentScriptChunkBytes
+        - assetReadConcurrency
+        - assetTimeoutMilliseconds
+        - captureDeadlineMilliseconds
+        - transferDeadlineMilliseconds
+        - inFlightTransfersPerPairing
+        - inFlightTransfersPerUser
+        - transferAttemptsPerUserHour
+        - idempotencyRetentionDays
+      properties:
+        multipartRequestBytes:
+          type: integer
+          format: int64
+          minimum: 1
+        manifestBytes:
+          type: integer
+          format: int64
+          minimum: 1
+        documentHtmlBytes:
+          type: integer
+          format: int64
+          minimum: 1
+        domElements:
+          type: integer
+          minimum: 1
+        assetRecords:
+          type: integer
+          minimum: 0
+        binaryAssets:
+          type: integer
+          minimum: 0
+        assetBytes:
+          type: integer
+          format: int64
+          minimum: 1
+        aggregateAssetBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        urlBytes:
+          type: integer
+          minimum: 1
+        titleCodePoints:
+          type: integer
+          minimum: 1
+        languageTagCharacters:
+          type: integer
+          minimum: 1
+        producerFieldCodePoints:
+          type: integer
+          minimum: 1
+        contentScriptChunkBytes:
+          type: integer
+          minimum: 1
+        assetReadConcurrency:
+          type: integer
+          minimum: 1
+        assetTimeoutMilliseconds:
+          type: integer
+          minimum: 1
+        captureDeadlineMilliseconds:
+          type: integer
+          minimum: 1
+        transferDeadlineMilliseconds:
+          type: integer
+          minimum: 1
+        inFlightTransfersPerPairing:
+          type: integer
+          minimum: 1
+        inFlightTransfersPerUser:
+          type: integer
+          minimum: 1
+        transferAttemptsPerUserHour:
+          type: integer
+          minimum: 1
+        idempotencyRetentionDays:
+          type: integer
+          minimum: 1
+      additionalProperties: true

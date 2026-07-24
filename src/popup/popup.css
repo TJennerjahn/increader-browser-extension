@@ -1,0 +1,143 @@
+:root {
+  color-scheme: light dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 344px;
+  min-height: 284px;
+  margin: 0;
+  color: light-dark(#1f2937, #f3f4f6);
+  background: light-dark(#f8fafc, #111827);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.popup-shell {
+  padding: 16px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.destination {
+  margin: 3px 0 0;
+  color: light-dark(#64748b, #94a3b8);
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.connection-card {
+  padding: 14px;
+  border: 1px solid light-dark(#e2e8f0, #334155);
+  border-radius: 12px;
+  background: light-dark(#ffffff, #1e293b);
+}
+
+.eyebrow {
+  margin: 0 0 5px;
+  color: light-dark(#64748b, #94a3b8);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.connection-status {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.connection-detail {
+  min-height: 34px;
+  margin: 5px 0 12px;
+  color: light-dark(#475569, #cbd5e1);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.primary-action,
+.secondary-action {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primary-action {
+  border: 1px solid #2563eb;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.settings {
+  margin-top: 12px;
+  color: light-dark(#475569, #cbd5e1);
+  font-size: 12px;
+}
+
+.settings summary {
+  cursor: pointer;
+}
+
+.settings form {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.settings input {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid light-dark(#cbd5e1, #475569);
+  border-radius: 7px;
+  color: inherit;
+  background: light-dark(#ffffff, #0f172a);
+}
+
+.secondary-action {
+  border: 1px solid light-dark(#cbd5e1, #475569);
+  color: inherit;
+  background: transparent;
+}
+
+.privacy-note {
+  margin: 13px 2px 0;
+  color: light-dark(#64748b, #94a3b8);
+  font-size: 11px;
+  line-height: 1.4;
+}

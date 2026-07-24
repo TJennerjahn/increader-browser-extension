@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Lint, test, verify protocol, and build both browsers
+        run: npm run verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-extension-packages
+          path: |
+            dist/production/increader-browser-extension-*-chrome.zip
+            dist/production/increader-browser-extension-*-firefox.zip
+          if-no-files-found: error
