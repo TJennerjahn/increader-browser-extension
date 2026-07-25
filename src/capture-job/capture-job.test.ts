@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActivePageInspection } from "../browser/active-page";
 import type { StagedCapturePackage } from "../capture-package/capture-package";
+import { CaptureTransferError } from "../protocol/capture-package-http";
 import {
   createCaptureJob,
   type CaptureJobRecord,
@@ -209,6 +210,128 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     );
   });
 
+  it("persists deterministic transfer failures as discardable but nonretryable", async () => {
+    const staged = packageFixture();
+    let record: CaptureJobRecord | null = null;
+    const store: CaptureJobStore = {
+      load: () => Promise.resolve(record),
+      save: vi.fn((next: CaptureJobRecord) => {
+        record = next;
+        return Promise.resolve();
+      }),
+      clear: vi.fn(() => {
+        record = null;
+        return Promise.resolve();
+      }),
+    };
+    const transfer = vi.fn().mockRejectedValue(
+      new CaptureTransferError(
+        "Capture Package is invalid.",
+        "capture_package_invalid",
+        false,
+      ),
+    );
+    const job = createCaptureJob({
+      accessToken: () => Promise.resolve("bca_memory"),
+      capture: () => Promise.resolve(staged),
+      notifyFailure: vi.fn().mockResolvedValue(undefined),
+      store,
+      transfer,
+    });
+
+    await job.startImport(supportedPage(), "https://reader.example");
+    await vi.waitFor(async () => {
+      await expect(job.current()).resolves.toMatchObject({
+        phase: "failed",
+        captureId: staged.manifest.captureId,
+        message: "Capture Package is invalid.",
+        retryable: false,
+      });
+    });
+    expect(record).toMatchObject({
+      phase: "failed",
+      package: staged,
+      retryable: false,
+    });
+
+    await job.retry();
+    expect(transfer).toHaveBeenCalledOnce();
+
+    await expect(
+      job.startImport(supportedPage(), "https://reader.example"),
+    ).resolves.toEqual({ status: "replacement-required" });
+
+    await job.discard();
+    await expect(job.current()).resolves.toEqual({ phase: "ready" });
+    expect(record).toBeNull();
+  });
+
+  it("preserves a 429 retry-not-before instant across restart without automatic retry", async () => {
+    const staged = packageFixture();
+    let now = 1_000_000;
+    let record: CaptureJobRecord | null = null;
+    const store: CaptureJobStore = {
+      load: () => Promise.resolve(record),
+      save: vi.fn((next: CaptureJobRecord) => {
+        record = next;
+        return Promise.resolve();
+      }),
+      clear: vi.fn(),
+    };
+    const firstTransfer = vi.fn().mockRejectedValue(
+      new CaptureTransferError(
+        "Increader is temporarily limiting Browser Capture transfers.",
+        "capture_transfer_limited",
+        true,
+        120,
+      ),
+    );
+    const firstJob = createCaptureJob({
+      accessToken: () => Promise.resolve("bca_memory"),
+      capture: () => Promise.resolve(staged),
+      notifyFailure: vi.fn().mockResolvedValue(undefined),
+      now: () => now,
+      store,
+      transfer: firstTransfer,
+    });
+
+    await firstJob.startImport(supportedPage(), "https://reader.example");
+    await vi.waitFor(async () => {
+      await expect(firstJob.current()).resolves.toMatchObject({
+        phase: "failed",
+        retryable: true,
+        retryAfterSeconds: 120,
+        retryNotBeforeEpochMs: 1_120_000,
+      });
+    });
+
+    const restartedTransfer = vi.fn().mockResolvedValue({
+      bookmarkId: 84,
+      created: false,
+      title: "Extracted article",
+    });
+    const restarted = createCaptureJob({
+      accessToken: () => Promise.resolve("bca_renewed"),
+      capture: vi.fn(),
+      notifyFailure: vi.fn(),
+      now: () => now,
+      store,
+      transfer: restartedTransfer,
+    });
+    await restarted.current();
+
+    await restarted.retry();
+    expect(restartedTransfer).not.toHaveBeenCalled();
+
+    now = 1_120_000;
+    await restarted.retry();
+    expect(restartedTransfer).toHaveBeenCalledOnce();
+    await expect(restarted.current()).resolves.toMatchObject({
+      phase: "completed",
+      outcome: "existing",
+    });
+  });
+
   it("returns silently to Ready when the User cancels local capture", async () => {
       const capture = deferred<StagedCapturePackage>();
       let aborted = false;
@@ -294,6 +417,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       origin: "https://reader.example",
       package: staged,
       message: "network unavailable",
+      retryable: true,
     };
     const store: CaptureJobStore = {
       load: () => Promise.resolve(record),
@@ -332,6 +456,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       origin: "https://reader.example",
       package: staged,
       message: "network unavailable",
+      retryable: true,
     };
     const restored = createCaptureJob({
       accessToken: () => Promise.resolve("bca_memory"),
@@ -507,6 +632,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       origin: "https://reader.example",
       package: staged,
       message: "network unavailable",
+      retryable: true,
     };
     const store: CaptureJobStore = {
       load: () => Promise.resolve(record),
@@ -600,7 +726,12 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     const attemptId = "019bf66c-42ac-7c33-b57d-e2131af04fe8";
     const job = createCaptureJob({
       accessToken: () => Promise.resolve("bca_memory"),
-      capture: () => Promise.reject(new Error("capture context closed")),
+      capture: () =>
+        Promise.reject(
+          new Error(
+            "Publisher SECRET https://publisher.example/path?token=SECRET",
+          ),
+        ),
       notifyFailure,
       randomUuid: () => attemptId,
       store,
@@ -611,14 +742,14 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
 
     await vi.waitFor(() => {
       expect(notifyFailure).toHaveBeenCalledWith(
-        "capture context closed",
+        "The active page could not be captured.",
         attemptId,
       );
     });
     expect(record).toEqual({
       phase: "capture-failed",
       attemptId,
-      message: "capture context closed",
+      message: "The active page could not be captured.",
     });
   });
 });

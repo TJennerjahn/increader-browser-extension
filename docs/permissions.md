@@ -17,7 +17,7 @@ The production Chrome and Firefox manifests request the same narrow authority.
 - `notifications` — show one action-required import failure notification.
 
 Pairing exercises `storage` and `identity`. Active-page inspection exercises
-`activeTab` and `scripting`; import failures will exercise `notifications`.
+`activeTab` and `scripting`; import failures exercise `notifications`.
 They are fixed production permissions asserted in both packaged manifests.
 
 ## Optional host access

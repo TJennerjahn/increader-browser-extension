@@ -150,7 +150,9 @@ export interface paths {
          *     binary asset parts use their Capture Asset ID as the multipart field
          *     name. The Capture Source URL remains Bookmark identity while canonical
          *     and base URLs are metadata/resolution hints. Capture ID idempotency is
-         *     scoped to the paired User and logical package fingerprint.
+         *     scoped to the paired User and logical package fingerprint. The encoded
+         *     multipart request must have a fixed Content-Length no greater than
+         *     64 MiB and must not use a non-identity Content-Encoding.
          */
         post: operations["importBrowserCapturePackage"];
         delete?: never;
@@ -363,7 +365,7 @@ export interface components {
             status: number;
             detail?: string;
             /** @enum {string} */
-            code: "capture_package_invalid" | "capture_id_conflict";
+            code: "capture_package_invalid" | "capture_id_conflict" | "capture_request_too_large" | "capture_content_length_required" | "capture_transfer_limited";
         } & {
             [key: string]: unknown;
         };
@@ -682,6 +684,26 @@ export interface operations {
             /** @description Capture ID was used for different logical content */
             409: {
                 headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
+                };
+            };
+            /** @description Encoded multipart request exceeds 64 MiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
+                };
+            };
+            /** @description Browser Capture transfer concurrency or rate limit */
+            429: {
+                headers: {
+                    /** @description Bounded whole seconds before an explicit Retry. */
+                    "Retry-After": number;
                     [name: string]: unknown;
                 };
                 content: {

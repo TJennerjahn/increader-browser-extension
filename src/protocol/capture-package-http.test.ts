@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { StagedCapturePackage } from "../capture-package/capture-package";
-import { createCapturePackageHttpClient } from "./capture-package-http";
+import {
+  CaptureTransferError,
+  createCapturePackageHttpClient,
+  encodeCapturePackageMultipart,
+} from "./capture-package-http";
 
 describe("Capture Package multipart transfer", () => {
   it.each([
@@ -40,24 +44,38 @@ describe("Capture Package multipart transfer", () => {
     expect(request.credentials).toBe("omit");
     expect(request.headers).toEqual({
       Authorization: "Bearer bca_memory",
+      "Content-Type":
+        "multipart/form-data; boundary=----increader-browser-capture-019c0000-0000-7000-8000-000000000001",
     });
-    expect(request.body).toBeInstanceOf(FormData);
-    const body = request.body as FormData;
-    expect(body.has("manifest")).toBe(true);
-    expect(body.has("document")).toBe(true);
-    expect(body.has("asset-0001")).toBe(true);
-    expect(JSON.parse(await (body.get("manifest") as Blob).text())).toEqual(
-      staged.manifest,
+    expect(request.body).toBeInstanceOf(Blob);
+    const body = request.body as Blob;
+    const bytes = new Uint8Array(await body.arrayBuffer());
+    const text = new TextDecoder("latin1").decode(bytes);
+    expect(text).toContain(
+      'name="manifest"; filename="capture-part"\r\nContent-Type: application/json',
     );
-    expect(await (body.get("document") as Blob).text()).toBe(
-      staged.documentHtml,
+    expect(text).toContain(JSON.stringify(staged.manifest));
+    expect(text).toContain(
+      'name="document"; filename="capture-part"\r\nContent-Type: text/html;charset=utf-8',
     );
-    const asset = body.get("asset-0001");
-    expect(asset).toBeInstanceOf(Blob);
-    expect((asset as Blob).type).toBe("image/png");
+    expect(text).toContain(staged.documentHtml);
+    expect(text).toContain(
+      'name="asset-0001"; filename="capture-part"\r\nContent-Type: image/png',
+    );
+    const firstAssetPart = staged.assetParts[0];
+    if (firstAssetPart === undefined) {
+      throw new Error("Asset fixture is missing.");
+    }
     expect(
-      Array.from(new Uint8Array(await (asset as Blob).arrayBuffer())),
-    ).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+      bytes.slice(
+        bytes.indexOf(0x89),
+        bytes.indexOf(0x89) + firstAssetPart.data.size,
+      ),
+    ).toEqual(
+      Uint8Array.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+      ]),
+    );
   });
 
   it("surfaces bounded Problem Details without reflecting page content", async () => {
@@ -68,7 +86,8 @@ describe("Capture Package multipart transfer", () => {
           title: "Invalid Capture Package",
           status: 400,
           code: "capture_package_invalid",
-          detail: "Capture Package is invalid.",
+          detail:
+            "Publisher title SECRET and https://publisher.example/path?token=SECRET",
         }),
         {
           status: 400,
@@ -77,13 +96,86 @@ describe("Capture Package multipart transfer", () => {
       ),
     );
 
+    const error = await createCapturePackageHttpClient(fetcher)
+      .transfer("https://reader.example", "bca_memory", packageFixture())
+      .catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(CaptureTransferError);
+    expect(error).toMatchObject({
+      message: "Capture Package is invalid.",
+      code: "capture_package_invalid",
+      retryable: false,
+      retryAfterSeconds: null,
+    });
+    expect(String(error)).not.toContain("SECRET");
+  });
+
+  it("classifies deterministic validation as nonretryable and bounds 429 Retry-After", async () => {
+    const responses = [
+      new Response(
+        JSON.stringify({
+          code: "capture_package_invalid",
+          detail: "unsafe reflected publisher content",
+        }),
+        { status: 400 },
+      ),
+      new Response(
+        JSON.stringify({ code: "capture_transfer_limited" }),
+        { status: 429, headers: { "Retry-After": "999999999" } },
+      ),
+    ];
+    const client = createCapturePackageHttpClient(
+      vi.fn().mockImplementation(() => {
+        const response = responses.shift();
+        if (response === undefined) throw new Error("Unexpected transfer");
+        return Promise.resolve(response);
+      }),
+    );
+
     await expect(
-      createCapturePackageHttpClient(fetcher).transfer(
+      client.transfer(
         "https://reader.example",
         "bca_memory",
         packageFixture(),
       ),
-    ).rejects.toThrow("Capture Package is invalid.");
+    ).rejects.toMatchObject({
+      name: CaptureTransferError.name,
+      code: "capture_package_invalid",
+      retryable: false,
+      retryAfterSeconds: null,
+    });
+    await expect(
+      client.transfer(
+        "https://reader.example",
+        "bca_memory",
+        packageFixture(),
+      ),
+    ).rejects.toMatchObject({
+      code: "capture_transfer_limited",
+      retryable: true,
+      retryAfterSeconds: 3600,
+    });
+  });
+
+  it("accepts exactly 64 MiB of encoded multipart bytes and rejects one byte more", () => {
+    const limit = 64 * 1024 * 1024;
+    const fixture = packageFixture();
+    const emptyAsset = packageWithAssetBlob(fixture, new Blob());
+    const fixedBytes = encodeCapturePackageMultipart(emptyAsset).body.size;
+    const backing = new Blob([new ArrayBuffer(limit - fixedBytes + 1)]);
+
+    expect(
+      encodeCapturePackageMultipart(
+        packageWithAssetBlob(
+          fixture,
+          backing.slice(0, limit - fixedBytes, "image/png"),
+        ),
+      ).body.size,
+    ).toBe(limit);
+    expect(() =>
+      encodeCapturePackageMultipart(
+        packageWithAssetBlob(fixture, backing.slice(0, undefined, "image/png")),
+      ),
+    ).toThrow("Capture Package request is too large.");
   });
 });
 
@@ -128,5 +220,19 @@ function packageFixture(): StagedCapturePackage {
       sourceUrl: "https://example.com/article",
       title: "Captured article",
     },
+  };
+}
+
+function packageWithAssetBlob(
+  fixture: StagedCapturePackage,
+  data: Blob,
+): StagedCapturePackage {
+  const firstAssetPart = fixture.assetParts[0];
+  if (firstAssetPart === undefined) {
+    throw new Error("Asset fixture is missing.");
+  }
+  return {
+    ...fixture,
+    assetParts: [{ ...firstAssetPart, data }],
   };
 }

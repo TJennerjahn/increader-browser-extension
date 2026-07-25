@@ -2,10 +2,13 @@ import type { ActivePageInspection } from "../browser/active-page";
 import type { components } from "../protocol/generated/browser-capture";
 
 const DOCUMENT_HTML_BYTES_LIMIT = 5 * 1024 * 1024;
+const MANIFEST_BYTES_LIMIT = 512 * 1024;
 const DOM_ELEMENTS_LIMIT = 100_000;
 const ASSET_RECORDS_LIMIT = 1_000;
 const CAPTURED_ASSETS_LIMIT = 60;
+const ASSET_BYTES_LIMIT = 8 * 1024 * 1024;
 const CAPTURED_ASSET_BYTES_LIMIT = 50 * 1024 * 1024;
+const CONTENT_SCRIPT_CHUNK_BYTES = 192 * 1024;
 const LANGUAGE_CHARACTERS_LIMIT = 35;
 const TITLE_CODE_POINTS_LIMIT = 1_024;
 const URL_BYTES_LIMIT = 8_192;
@@ -75,6 +78,13 @@ export interface CapturePackageAssembler {
 export interface CapturePackageProgress {
   completedAssets: number;
   totalAssets: number;
+}
+
+export class CapturePackageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = CapturePackageError.name;
+  }
 }
 
 interface CapturePackageAssemblerDependencies {
@@ -156,6 +166,7 @@ export function createCapturePackageAssembler({
       const assetParts: StagedCaptureAssetPart[] = [];
       let capturedAssetCount = 0;
       let capturedAssetBytes = 0;
+      let aggregateLimitReached = false;
       onProgress?.({ completedAssets: 0, totalAssets: captured.assets.length });
       for (const [index, asset] of captured.assets.entries()) {
         throwIfCaptureCancelled(signal);
@@ -173,6 +184,19 @@ export function createCapturePackageAssembler({
           continue;
         }
         const bytes = decodeChunks(asset.outcome.chunks);
+        if (bytes.byteLength > ASSET_BYTES_LIMIT) {
+          assets.push({
+            id: asset.id,
+            sourceUrl: asset.sourceUrl,
+            status: "unavailable",
+            reason: "asset_too_large",
+          });
+          onProgress?.({
+            completedAssets: index + 1,
+            totalAssets: captured.assets.length,
+          });
+          continue;
+        }
         if (capturedAssetCount >= CAPTURED_ASSETS_LIMIT) {
           assets.push({
             id: asset.id,
@@ -186,10 +210,24 @@ export function createCapturePackageAssembler({
           });
           continue;
         }
+        if (aggregateLimitReached) {
+          assets.push({
+            id: asset.id,
+            sourceUrl: asset.sourceUrl,
+            status: "unavailable",
+            reason: "aggregate_limit",
+          });
+          onProgress?.({
+            completedAssets: index + 1,
+            totalAssets: captured.assets.length,
+          });
+          continue;
+        }
         if (
           capturedAssetBytes + bytes.byteLength >
           CAPTURED_ASSET_BYTES_LIMIT
         ) {
+          aggregateLimitReached = true;
           assets.push({
             id: asset.id,
             sourceUrl: asset.sourceUrl,
@@ -249,6 +287,12 @@ export function createCapturePackageAssembler({
         },
         assets,
       };
+      if (
+        new TextEncoder().encode(JSON.stringify(manifest)).byteLength >
+        MANIFEST_BYTES_LIMIT
+      ) {
+        throw captureFailure("Capture Package manifest is too large.");
+      }
       Object.freeze(assetParts);
       return Object.freeze({
         manifest: freezeManifest(manifest),
@@ -273,7 +317,11 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
   const marker = "increader:browser-capture-asset/";
   const assetBytesLimit = 8 * 1024 * 1024;
   const assetRecordsLimit = 1_000;
+  const capturedAssetsLimit = 60;
+  const aggregateAssetBytesLimit = 50 * 1024 * 1024;
   const assetTimeoutMilliseconds = 15_000;
+  const assetReadConcurrency = 4;
+  const captureDeadlineAt = Date.now() + 90_000;
   const binaryChunkBytes = 192 * 1024;
   const lazyUrlAttributes = [
     "data-src",
@@ -294,9 +342,21 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
           resolved.protocol !== "blob:") ||
         resolved.username !== "" ||
         resolved.password !== "" ||
-        resolved.href.startsWith(marker)
+        resolved.href.startsWith(marker) ||
+        new TextEncoder().encode(resolved.toString()).byteLength > 8_192
       ) {
         return null;
+      }
+      if (resolved.protocol === "blob:") {
+        const nested = new URL(resolved.href.slice("blob:".length));
+        if (
+          (nested.protocol !== "http:" && nested.protocol !== "https:") ||
+          nested.username !== "" ||
+          nested.password !== "" ||
+          nested.hash !== ""
+        ) {
+          return null;
+        }
       }
       return resolved.toString();
     } catch {
@@ -431,10 +491,14 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
   const acquire = async (
     sourceUrl: string,
   ): Promise<CapturedPageAsset["outcome"]> => {
+    const remainingCaptureMilliseconds = captureDeadlineAt - Date.now();
+    if (remainingCaptureMilliseconds <= 0) {
+      return { status: "unavailable", reason: "timeout" };
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-    }, assetTimeoutMilliseconds);
+    }, Math.min(assetTimeoutMilliseconds, remainingCaptureMilliseconds));
     try {
       const response = await fetch(sourceUrl, {
         credentials: "include",
@@ -443,9 +507,35 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
       if (!response.ok) {
         return { status: "unavailable", reason: "acquisition_failed" };
       }
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > assetBytesLimit) {
+      const declaredLength = Number(response.headers.get("Content-Length"));
+      if (
+        Number.isFinite(declaredLength) &&
+        declaredLength > assetBytesLimit
+      ) {
+        await response.body?.cancel();
         return { status: "unavailable", reason: "asset_too_large" };
+      }
+      if (response.body === null) {
+        return { status: "unavailable", reason: "acquisition_failed" };
+      }
+      const chunks: Uint8Array[] = [];
+      let receivedBytes = 0;
+      const reader = response.body.getReader();
+      for (;;) {
+        const result = await reader.read();
+        if (result.done) break;
+        receivedBytes += result.value.byteLength;
+        if (receivedBytes > assetBytesLimit) {
+          await reader.cancel();
+          return { status: "unavailable", reason: "asset_too_large" };
+        }
+        chunks.push(result.value);
+      }
+      const bytes = new Uint8Array(receivedBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
       }
       const mediaType = sniffMediaType(bytes);
       if (mediaType === null) {
@@ -550,9 +640,7 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
     const selected = selectImageCandidate(liveImage, base);
     removeResponsiveAlternatives(clonedImage);
     if (selected === null) {
-      if (clonedImage.getAttribute("src")?.startsWith(marker)) {
-        clonedImage.removeAttribute("src");
-      }
+      clonedImage.removeAttribute("src");
       continue;
     }
     let assetId = assetsByCandidate.get(selected);
@@ -573,13 +661,65 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
   clone.querySelectorAll("picture source").forEach((element) => {
     element.remove();
   });
-  const assets: CapturedPageAsset[] = await Promise.all(
-    candidates.map(async (asset) => ({
-      id: asset.id,
-      sourceUrl: asset.sourceUrl,
-      outcome: await acquire(asset.acquisitionUrl),
-    })),
-  );
+  const assets = new Array<CapturedPageAsset>(candidates.length);
+  let capturedAssets = 0;
+  let capturedBytes = 0;
+  let binaryLimitReached = false;
+  let aggregateLimitReached = false;
+  for (let start = 0; start < candidates.length; start += assetReadConcurrency) {
+    const batch = candidates.slice(start, start + assetReadConcurrency);
+    if (binaryLimitReached || aggregateLimitReached) {
+      for (const [offset, asset] of batch.entries()) {
+        assets[start + offset] = {
+          id: asset.id,
+          sourceUrl: asset.sourceUrl,
+          outcome: {
+            status: "unavailable",
+            reason: binaryLimitReached ? "binary_limit" : "aggregate_limit",
+          },
+        };
+      }
+      continue;
+    }
+    const outcomes = await Promise.all(
+      batch.map((asset) => acquire(asset.acquisitionUrl)),
+    );
+    for (const [offset, asset] of batch.entries()) {
+      let outcome = outcomes[offset];
+      if (outcome === undefined) {
+        outcome = { status: "unavailable", reason: "acquisition_failed" };
+      }
+      if (outcome.status === "captured") {
+        const outcomeBytes = outcome.chunks.reduce(
+          (total, chunk) => total + atob(chunk).length,
+          0,
+        );
+        if (aggregateLimitReached) {
+          outcome = { status: "unavailable", reason: "aggregate_limit" };
+        } else if (capturedAssets >= capturedAssetsLimit) {
+          binaryLimitReached = true;
+          outcome = { status: "unavailable", reason: "binary_limit" };
+        } else if (
+          capturedBytes + outcomeBytes >
+          aggregateAssetBytesLimit
+        ) {
+          aggregateLimitReached = true;
+          outcome = { status: "unavailable", reason: "aggregate_limit" };
+        } else {
+          capturedAssets += 1;
+          capturedBytes += outcomeBytes;
+          if (capturedAssets === capturedAssetsLimit) {
+            binaryLimitReached = true;
+          }
+        }
+      }
+      assets[start + offset] = {
+        id: asset.id,
+        sourceUrl: asset.sourceUrl,
+        outcome,
+      };
+    }
+  }
 
   const serializedDoctype =
     document.doctype === null
@@ -700,6 +840,13 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 
 function decodeChunks(chunks: string[]): Uint8Array {
   const decoded = chunks.map((chunk) => atob(chunk));
+  if (
+    decoded.some((chunk) => chunk.length > CONTENT_SCRIPT_CHUNK_BYTES) ||
+    decoded.reduce((length, chunk) => length + chunk.length, 0) >
+      ASSET_BYTES_LIMIT
+  ) {
+    throw captureFailure("Captured asset data is invalid.");
+  }
   const bytes = new Uint8Array(
     decoded.reduce((length, chunk) => length + chunk.length, 0),
   );
@@ -776,8 +923,8 @@ function isCapturedPageAsset(value: unknown): value is CapturedPageAsset {
   );
 }
 
-function captureFailure(message: string): Error {
-  return new Error(message);
+function captureFailure(message: string): CapturePackageError {
+  return new CapturePackageError(message);
 }
 
 function callbackResult<T>(
@@ -791,7 +938,7 @@ function callbackResult<T>(
       if (error === undefined) {
         resolve(value);
       } else {
-        reject(new Error(error.message));
+        reject(captureFailure("The active page could not be captured."));
       }
     });
   });

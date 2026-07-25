@@ -14,6 +14,9 @@ bounded metadata, and selected image bytes. That can include material visible
 because the User is signed in to the page. The extension sends it only to the
 one paired Increader instance so Increader can create or find the User's
 Bookmark and normal Reader Content.
+Selected-image reads are bounded to four at a time, 15 seconds each, 90 seconds
+for the whole capture, 8 MiB per binary, 60 captured binaries, and 50 MiB in
+aggregate. The complete fixed-length multipart request is limited to 64 MiB.
 
 The installation UUID, rotating Browser Capture Renewal Credential, pairing
 metadata, and configured instance origin stay in extension-local,

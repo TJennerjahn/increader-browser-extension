@@ -158,6 +158,8 @@ export function mountPopup(
   let pageGeneration = 0;
   let importActive = false;
   let currentJobState: CaptureJobState = { phase: "ready" };
+  let retryRevealTimeout: ReturnType<typeof globalThis.setTimeout> | null =
+    null;
   const isDisposed = (): boolean => disposed;
 
   const showDisconnected = (message?: string): void => {
@@ -451,6 +453,10 @@ export function mountPopup(
 
   function renderJobState(next: CaptureJobState): void {
     currentJobState = next;
+    if (retryRevealTimeout !== null) {
+      globalThis.clearTimeout(retryRevealTimeout);
+      retryRevealTimeout = null;
+    }
     cancelButton.hidden = true;
     retryButton.hidden = true;
     discardButton.hidden = true;
@@ -498,8 +504,30 @@ export function mountPopup(
     pageStatus.textContent = "Needs attention";
     pageDetail.textContent = next.message;
     importButton.disabled = currentPage === null;
-    if (next.retryable) {
+    const retryDelay =
+      next.retryNotBeforeEpochMs === undefined
+        ? 0
+        : next.retryNotBeforeEpochMs - Date.now();
+    if (next.retryable && retryDelay <= 0) {
       retryButton.hidden = false;
+    } else if (next.retryable) {
+      const expectedCaptureId = next.captureId;
+      const expectedRetryTime = next.retryNotBeforeEpochMs;
+      retryRevealTimeout = globalThis.setTimeout(() => {
+        retryRevealTimeout = null;
+        if (
+          !isDisposed() &&
+          currentJobState.phase === "failed" &&
+          currentJobState.captureId === expectedCaptureId &&
+          currentJobState.retryNotBeforeEpochMs === expectedRetryTime &&
+          expectedRetryTime !== undefined &&
+          Date.now() >= expectedRetryTime
+        ) {
+          retryButton.hidden = false;
+        }
+      }, retryDelay);
+    }
+    if (next.captureId !== null) {
       discardButton.hidden = false;
     }
   }
@@ -533,6 +561,9 @@ export function mountPopup(
 
   return () => {
     disposed = true;
+    if (retryRevealTimeout !== null) {
+      globalThis.clearTimeout(retryRevealTimeout);
+    }
     cloudButton.removeEventListener("click", onCloudConnect);
     selfHostedForm.removeEventListener("submit", onSelfHostedSubmit);
     disconnectButton.removeEventListener("click", onDisconnect);

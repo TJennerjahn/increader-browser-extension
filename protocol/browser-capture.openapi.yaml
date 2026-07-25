@@ -163,7 +163,9 @@ paths:
         binary asset parts use their Capture Asset ID as the multipart field
         name. The Capture Source URL remains Bookmark identity while canonical
         and base URLs are metadata/resolution hints. Capture ID idempotency is
-        scoped to the paired User and logical package fingerprint.
+        scoped to the paired User and logical package fingerprint. The encoded
+        multipart request must have a fixed Content-Length no greater than
+        64 MiB and must not use a non-identity Content-Encoding.
       security:
         - browserCaptureAccess: []
       requestBody:
@@ -219,6 +221,26 @@ paths:
           description: Invalid or expired Browser Capture Access Token
         "409":
           description: Capture ID was used for different logical content
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureProblem"
+        "413":
+          description: Encoded multipart request exceeds 64 MiB
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureProblem"
+        "429":
+          description: Browser Capture transfer concurrency or rate limit
+          headers:
+            Retry-After:
+              required: true
+              description: Bounded whole seconds before an explicit Retry.
+              schema:
+                type: integer
+                minimum: 1
+                maximum: 3600
           content:
             application/problem+json:
               schema:
@@ -654,6 +676,9 @@ components:
           enum:
             - capture_package_invalid
             - capture_id_conflict
+            - capture_request_too_large
+            - capture_content_length_required
+            - capture_transfer_limited
       additionalProperties: true
     BrowserCaptureDiscovery:
       type: object

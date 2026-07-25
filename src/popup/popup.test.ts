@@ -531,6 +531,96 @@ describe("compact Browser Capture popup", () => {
       );
     });
   });
+
+  it("offers Discard without Retry for a deterministic package rejection", async () => {
+    const captureJob: CaptureJobClient = {
+      current: () =>
+        Promise.resolve({
+          phase: "failed",
+          captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+          message: "Capture Package is invalid.",
+          retryable: false,
+        }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, paired(), {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://publisher.example/rejected",
+        tabId: 25,
+        title: "Rejected article",
+      }),
+      captureJob,
+      confirmReplacement: vi.fn(),
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Capture Package is invalid.")).toBeTruthy();
+    });
+    expect(root.querySelector<HTMLButtonElement>("[data-retry]")?.hidden).toBe(
+      true,
+    );
+    expect(root.querySelector<HTMLButtonElement>("[data-discard]")?.hidden).toBe(
+      false,
+    );
+  });
+
+  it("reveals Retry only when the persisted 429 delay has elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-25T12:00:00.000Z"));
+    try {
+      const retryNotBeforeEpochMs = Date.now() + 2_000;
+      const captureJob: CaptureJobClient = {
+        current: () =>
+          Promise.resolve({
+            phase: "failed",
+            captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+            message: "Browser Capture is temporarily limited.",
+            retryable: true,
+            retryAfterSeconds: 2,
+            retryNotBeforeEpochMs,
+          }),
+        startImport: vi.fn(),
+        retry: vi.fn(),
+        cancel: vi.fn(),
+        discard: vi.fn(),
+        observe: () => () => undefined,
+      };
+      const root = document.createElement("main");
+      mountPopup(root, paired(), {
+        activePage: inspector({
+          kind: "supported",
+          sourceUrl: "https://publisher.example/limited",
+          tabId: 25,
+          title: "Limited article",
+        }),
+        captureJob,
+        confirmReplacement: vi.fn(),
+        lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+        openReader: vi.fn(),
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      const retryButton =
+        root.querySelector<HTMLButtonElement>("[data-retry]");
+
+      expect(retryButton?.hidden).toBe(true);
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(retryButton?.hidden).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(retryButton?.hidden).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function paired(): Pairing {

@@ -7,6 +7,7 @@ import { createCapturePackageAssembler } from "./capture-package";
 
 describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     document.open();
     // JSDOM requires document.write to replace the synthetic document,
     // including its doctype, before exercising the injected browser seam.
@@ -340,6 +341,372 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
     );
   });
 
+  it("limits page-context asset acquisition to four concurrent reads", async () => {
+    const imageCount = 8;
+    document.querySelector("main")?.insertAdjacentHTML(
+      "beforeend",
+      Array.from(
+        { length: imageCount },
+        (_, index) =>
+          `<img id="bounded-${String(index)}" src="https://cdn.example/${String(index)}.png">`,
+      ).join(""),
+    );
+    for (let index = 0; index < imageCount; index += 1) {
+      defineCurrentSource(
+        requiredImage(`bounded-${String(index)}`),
+        `https://cdn.example/${String(index)}.png`,
+      );
+    }
+    const pending: Array<(response: Response) => void> = [];
+    let active = 0;
+    let maximumActive = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          pending.push((response) => {
+            active -= 1;
+            resolve(response);
+          });
+        }),
+    );
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000004",
+      scripting: executingScripting(),
+    });
+
+    const capture = assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+    await vi.waitFor(() => {
+      expect(pending).toHaveLength(4);
+    });
+    resolvePendingImages(pending);
+    await vi.waitFor(() => {
+      expect(pending).toHaveLength(4);
+    });
+    resolvePendingImages(pending);
+
+    const staged = await capture;
+    expect(staged.manifest.assets.length).toBeGreaterThan(0);
+    expect(maximumActive).toBe(4);
+  });
+
+  it("stops an oversized asset stream without buffering the remaining response", async () => {
+    document.querySelector("main")?.insertAdjacentHTML(
+      "beforeend",
+      '<img id="streaming-large" src="https://cdn.example/streaming-large.png">',
+    );
+    defineCurrentSource(
+      requiredImage("streaming-large"),
+      "https://cdn.example/streaming-large.png",
+    );
+    const cancel = vi.fn();
+    let pulls = 0;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      body: new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulls += 1;
+          controller.enqueue(new Uint8Array(1024 * 1024));
+        },
+        cancel,
+      }),
+    } as Response);
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000005",
+      scripting: executingScripting(),
+    });
+
+    const staged = await assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+
+    expect(staged.manifest.assets).toEqual([
+      expect.objectContaining({
+        status: "unavailable",
+        reason: "asset_too_large",
+      }),
+    ]);
+    expect(staged.assetParts).toEqual([]);
+    expect(pulls).toBeLessThanOrEqual(10);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("stages a valid partial package when the 90-second capture deadline expires", async () => {
+    vi.useFakeTimers();
+    try {
+      const imageCount = 28;
+      document.querySelector("main")?.insertAdjacentHTML(
+        "beforeend",
+        Array.from(
+          { length: imageCount },
+          (_, index) =>
+            `<img id="deadline-${String(index)}" src="https://cdn.example/${String(index)}.png">`,
+        ).join(""),
+      );
+      for (let index = 0; index < imageCount; index += 1) {
+        defineCurrentSource(
+          requiredImage(`deadline-${String(index)}`),
+          `https://cdn.example/${String(index)}.png`,
+        );
+      }
+      vi.spyOn(globalThis, "fetch").mockImplementation(
+        (_input, options) =>
+          new Promise<Response>((_resolve, reject) => {
+            options?.signal?.addEventListener(
+              "abort",
+              () => { reject(new DOMException("Timed out", "AbortError")); },
+              { once: true },
+            );
+          }),
+      );
+      const assembler = createCapturePackageAssembler({
+        producer: { browser: "Firefox", extensionVersion: "0.1.0" },
+        randomUuid: () => "019c0000-0000-7000-8000-000000000006",
+        scripting: executingScripting(),
+      });
+      const capture = assembler.capture({
+        kind: "supported",
+        sourceUrl: `${location.origin}/article?view=full`,
+        tabId: 19,
+        title: "Rendered title",
+      });
+
+      await vi.advanceTimersByTimeAsync(90_001);
+      vi.useRealTimers();
+      const staged = await Promise.race([
+        capture,
+        new Promise<"still-capturing">((resolve) => {
+          setTimeout(() => { resolve("still-capturing"); }, 50);
+        }),
+      ]);
+      expect(staged).not.toBe("still-capturing");
+      if (staged === "still-capturing") return;
+      expect(staged.manifest.assets).toHaveLength(imageCount);
+      expect(
+        staged.manifest.assets.every(
+          (asset) =>
+            asset.status === "unavailable" && asset.reason === "timeout",
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops scheduling image reads after the 60-binary limit is reached", async () => {
+    const imageCount = 70;
+    document.querySelector("main")?.insertAdjacentHTML(
+      "beforeend",
+      Array.from(
+        { length: imageCount },
+        (_, index) =>
+          `<img id="binary-limit-${String(index)}" src="https://cdn.example/${String(index)}.png">`,
+      ).join(""),
+    );
+    for (let index = 0; index < imageCount; index += 1) {
+      defineCurrentSource(
+        requiredImage(`binary-limit-${String(index)}`),
+        `https://cdn.example/${String(index)}.png`,
+      );
+    }
+    const png = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+    ]);
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => Promise.resolve(new Response(png)));
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000008",
+      scripting: executingScripting(),
+    });
+
+    const staged = await assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+
+    expect(staged.assetParts).toHaveLength(60);
+    expect(
+      staged.manifest.assets.slice(60).every(
+        (asset) =>
+          asset.status === "unavailable" &&
+          asset.reason === "binary_limit",
+      ),
+    ).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(60);
+  });
+
+  it("marks every later DOM-order record unavailable after aggregate overflow", async () => {
+    const imageCount = 8;
+    document.querySelector("main")?.insertAdjacentHTML(
+      "beforeend",
+      Array.from(
+        { length: imageCount },
+        (_, index) =>
+          `<img id="aggregate-limit-${String(index)}" src="https://cdn.example/${String(index)}.png">`,
+      ).join(""),
+    );
+    for (let index = 0; index < imageCount; index += 1) {
+      defineCurrentSource(
+        requiredImage(`aggregate-limit-${String(index)}`),
+        `https://cdn.example/${String(index)}.png`,
+      );
+    }
+    const png = (size: number) => {
+      const bytes = new Uint8Array(size);
+      bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      return bytes;
+    };
+    const sizes = [
+      ...Array.from({ length: 6 }, () => 8 * 1024 * 1024),
+      3 * 1024 * 1024,
+      12,
+    ];
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      const size = sizes.shift();
+      if (size === undefined) throw new Error("Unexpected asset read");
+      return Promise.resolve(new Response(png(size)));
+    });
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000010",
+      scripting: executingScripting(),
+    });
+
+    const staged = await assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+
+    expect(staged.assetParts).toHaveLength(6);
+    expect(staged.manifest.assets.slice(6)).toEqual([
+      expect.objectContaining({
+        status: "unavailable",
+        reason: "aggregate_limit",
+      }),
+      expect.objectContaining({
+        status: "unavailable",
+        reason: "aggregate_limit",
+      }),
+    ]);
+  });
+
+  it("keeps aggregate overflow sticky after the scripting boundary", async () => {
+    const chunkBytes = 192 * 1024;
+    const fullChunk = btoa("\0".repeat(chunkBytes));
+    const chunksFor = (bytes: number): string[] => {
+      const chunks = Array.from(
+        { length: Math.floor(bytes / chunkBytes) },
+        () => fullChunk,
+      );
+      const remainder = bytes % chunkBytes;
+      if (remainder > 0) chunks.push(btoa("\0".repeat(remainder)));
+      return chunks;
+    };
+    const eightMiB = chunksFor(8 * 1024 * 1024);
+    const injectedAssets = [
+      ...Array.from({ length: 6 }, (_unused, index) => ({
+        id: `asset-${String(index + 1).padStart(4, "0")}`,
+        sourceUrl: `https://cdn.example/${String(index)}.png`,
+        outcome: {
+          status: "captured",
+          mediaType: "image/png",
+          chunks: eightMiB,
+        },
+      })),
+      {
+        id: "asset-0007",
+        sourceUrl: "https://cdn.example/overflow.png",
+        outcome: {
+          status: "captured",
+          mediaType: "image/png",
+          chunks: chunksFor(3 * 1024 * 1024),
+        },
+      },
+      {
+        id: "asset-0008",
+        sourceUrl: "https://cdn.example/later-small.png",
+        outcome: {
+          status: "captured",
+          mediaType: "image/png",
+          chunks: chunksFor(12),
+        },
+      },
+    ];
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Firefox", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000011",
+      scripting: executingScripting((captured) => ({
+        ...captured,
+        assets: injectedAssets,
+      })),
+    });
+
+    const staged = await assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+
+    expect(staged.assetParts).toHaveLength(6);
+    expect(staged.manifest.assets.slice(6)).toEqual([
+      expect.objectContaining({
+        status: "unavailable",
+        reason: "aggregate_limit",
+      }),
+      expect.objectContaining({
+        status: "unavailable",
+        reason: "aggregate_limit",
+      }),
+    ]);
+  });
+
+  it("does not fetch or preserve a blob URL with embedded credentials", async () => {
+    document.querySelector("main")?.insertAdjacentHTML(
+      "beforeend",
+      '<img id="credentialed-blob" src="blob:https://user:secret@publisher.example/id">',
+    );
+    defineCurrentSource(
+      requiredImage("credentialed-blob"),
+      "blob:https://user:secret@publisher.example/id",
+    );
+    const fetcher = vi.spyOn(globalThis, "fetch");
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Firefox", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000009",
+      scripting: executingScripting(),
+    });
+
+    const staged = await assembler.capture({
+      kind: "supported",
+      sourceUrl: `${location.origin}/article?view=full`,
+      tabId: 19,
+      title: "Rendered title",
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(staged.manifest.assets).toEqual([]);
+    expect(staged.documentHtml).not.toContain("user:secret");
+  });
+
   it("rejects a changed source before allocating a Capture ID", async () => {
     const randomUuid = vi.fn(() => crypto.randomUUID());
     const assembler = createCapturePackageAssembler({
@@ -358,6 +725,50 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
       }),
     ).rejects.toThrow("The active page changed before capture started.");
     expect(randomUuid).not.toHaveBeenCalled();
+  });
+
+  it("does not reflect a scripting error containing publisher content", async () => {
+    vi.stubGlobal("chrome", {
+      runtime: {
+        lastError: {
+          message:
+            "Publisher SECRET https://publisher.example/path?token=SECRET",
+        },
+      },
+    });
+    try {
+      const assembler = createCapturePackageAssembler({
+        producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+        randomUuid: () => crypto.randomUUID(),
+        scripting: {
+          executeScript(
+            _injection: chrome.scripting.ScriptInjection<unknown[], unknown>,
+            callback?: (
+              results: chrome.scripting.InjectionResult[],
+            ) => void,
+          ) {
+            callback?.([]);
+          },
+        } as unknown as typeof chrome.scripting,
+      });
+
+      const error = await assembler
+        .capture({
+          kind: "supported",
+          sourceUrl: `${location.origin}/article?view=full`,
+          tabId: 19,
+          title: "Rendered title",
+        })
+        .catch((reason: unknown) => reason);
+
+      expect(error).toMatchObject({
+        message: "The active page could not be captured.",
+      });
+      expect(String(error)).not.toContain("SECRET");
+      expect(String(error)).not.toContain("publisher.example");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("revalidates that the click-authorized document is still HTML", async () => {
@@ -425,6 +836,33 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
 
     expect(staged.manifest.baseUrl).toBe(sourceUrl);
   });
+
+  it("rejects a manifest whose UTF-8 representation exceeds 512 KiB", async () => {
+    const assembler = createCapturePackageAssembler({
+      producer: { browser: "Chrome", extensionVersion: "0.1.0" },
+      randomUuid: () => "019c0000-0000-7000-8000-000000000007",
+      scripting: executingScripting((captured) => ({
+        ...captured,
+        assets: Array.from({ length: 70 }, (_, index) => ({
+          id: `asset-${String(index + 1).padStart(4, "0")}`,
+          sourceUrl: `https://cdn.example/${String(index)}/${"a".repeat(7_500)}`,
+          outcome: {
+            status: "unavailable",
+            reason: "acquisition_failed",
+          },
+        })),
+      })),
+    });
+
+    await expect(
+      assembler.capture({
+        kind: "supported",
+        sourceUrl: `${location.origin}/article?view=full`,
+        tabId: 19,
+        title: "Rendered title",
+      }),
+    ).rejects.toThrow("Capture Package manifest is too large.");
+  });
 });
 
 function executingScripting(
@@ -477,4 +915,15 @@ function defineCurrentSource(
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   return input instanceof URL ? input.toString() : input.url;
+}
+
+function resolvePendingImages(
+  pending: Array<(response: Response) => void>,
+): void {
+  const png = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+  ]);
+  for (const resolve of pending.splice(0)) {
+    resolve(new Response(png, { headers: { "Content-Type": "image/png" } }));
+  }
 }

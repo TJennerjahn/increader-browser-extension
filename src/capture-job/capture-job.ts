@@ -1,6 +1,12 @@
 import type { ActivePageInspection } from "../browser/active-page";
-import type { StagedCapturePackage } from "../capture-package/capture-package";
-import type { CapturePackageOutcome } from "../protocol/capture-package-http";
+import {
+  CapturePackageError,
+  type StagedCapturePackage,
+} from "../capture-package/capture-package";
+import {
+  CaptureTransferError,
+  type CapturePackageOutcome,
+} from "../protocol/capture-package-http";
 
 type SupportedPage = Extract<ActivePageInspection, { kind: "supported" }>;
 
@@ -26,6 +32,8 @@ export type CaptureJobState =
       captureId: string | null;
       message: string;
       retryable: boolean;
+      retryAfterSeconds?: number;
+      retryNotBeforeEpochMs?: number;
     };
 
 export type CaptureJobRecord =
@@ -50,6 +58,9 @@ export type CaptureJobRecord =
       origin: string;
       package: StagedCapturePackage;
       message: string;
+      retryable: boolean;
+      retryAfterSeconds?: number;
+      retryNotBeforeEpochMs?: number;
     }
   | Extract<CaptureJobState, { phase: "completed" }>;
 
@@ -94,6 +105,7 @@ interface CaptureJobDependencies {
   store: CaptureJobStore;
   notifyFailure: (message: string, notificationId: string) => Promise<void>;
   clock?: CaptureJobClock;
+  now?: () => number;
   randomUuid?: () => string;
 }
 
@@ -115,6 +127,7 @@ export function createCaptureJob({
     },
   },
   notifyFailure,
+  now = () => Date.now(),
   randomUuid = () => globalThis.crypto.randomUUID(),
   store,
   transfer,
@@ -203,7 +216,16 @@ export function createCaptureJob({
             phase: "failed",
             captureId: record.package.manifest.captureId,
             message: record.message,
-            retryable: true,
+            retryable: record.retryable,
+            ...(record.retryAfterSeconds === undefined
+              ? {}
+              : { retryAfterSeconds: record.retryAfterSeconds }),
+            ...(record.retryNotBeforeEpochMs === undefined
+              ? {}
+              : {
+                  retryNotBeforeEpochMs:
+                    record.retryNotBeforeEpochMs,
+                }),
           };
           return;
         }
@@ -214,6 +236,7 @@ export function createCaptureJob({
           origin: record.origin,
           package: record.package,
           message,
+          retryable: true,
         };
         await persist(failed);
         state = {
@@ -270,12 +293,36 @@ export function createCaptureJob({
         error instanceof Error
           ? error.message
           : "Increader could not import this Capture Package.";
-      await persist({ phase: "failed", origin, package: staged, message });
+      const retryable =
+        error instanceof CaptureTransferError ? error.retryable : true;
+      const retryAfterSeconds =
+        error instanceof CaptureTransferError
+          ? error.retryAfterSeconds
+          : null;
+      const retryNotBeforeEpochMs =
+        retryAfterSeconds === null
+          ? null
+          : now() + retryAfterSeconds * 1_000;
+      await persist({
+        phase: "failed",
+        origin,
+        package: staged,
+        message,
+        retryable,
+        ...(retryAfterSeconds === null ? {} : { retryAfterSeconds }),
+        ...(retryNotBeforeEpochMs === null
+          ? {}
+          : { retryNotBeforeEpochMs }),
+      });
       publish({
         phase: "failed",
         captureId: staged.manifest.captureId,
         message,
-        retryable: true,
+        retryable,
+        ...(retryAfterSeconds === null ? {} : { retryAfterSeconds }),
+        ...(retryNotBeforeEpochMs === null
+          ? {}
+          : { retryNotBeforeEpochMs }),
       });
       await bestEffortNotification(message, staged.manifest.captureId);
     } finally {
@@ -313,10 +360,14 @@ export function createCaptureJob({
     startImport(page, origin, replaceExisting = false) {
       return runExclusive(async () => {
         await ensureRestored();
-        if (state.phase === "failed" && state.retryable && !replaceExisting) {
+        if (
+          state.phase === "failed" &&
+          state.captureId !== null &&
+          !replaceExisting
+        ) {
           return { status: "replacement-required" };
         }
-        if (state.phase === "failed" && state.retryable) {
+        if (state.phase === "failed" && state.captureId !== null) {
           await persist(null);
         }
         const generation = ++captureGeneration;
@@ -359,7 +410,7 @@ export function createCaptureJob({
           .catch(async (error: unknown) => {
             if (generation !== captureGeneration) return;
             const message =
-              error instanceof Error
+              error instanceof CapturePackageError
                 ? error.message
                 : "The active page could not be captured.";
             activeAttemptId = null;
@@ -375,7 +426,14 @@ export function createCaptureJob({
       return runExclusive(async () => {
         await ensureRestored();
         const record = await store.load();
-        if (record?.phase !== "failed") return;
+        if (
+          record?.phase !== "failed" ||
+          !record.retryable ||
+          (record.retryNotBeforeEpochMs !== undefined &&
+            record.retryNotBeforeEpochMs > now())
+        ) {
+          return;
+        }
         await send(record.origin, record.package);
       });
     },
@@ -392,7 +450,7 @@ export function createCaptureJob({
     discard() {
       return runExclusive(async () => {
         await ensureRestored();
-        if (state.phase === "failed" && state.retryable) {
+        if (state.phase === "failed" && state.captureId !== null) {
           await persist(null);
           publish({ phase: "ready" });
         }
