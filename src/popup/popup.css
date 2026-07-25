@@ -325,9 +325,32 @@ h1 {
 }
 
 .page-icon {
-  border-color: oklch(var(--s) / 0.2);
-  color: oklch(var(--s));
-  background: oklch(var(--s) / 0.09);
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  color: oklch(var(--bc) / 0.48);
+  background: oklch(var(--b2));
+}
+
+.page-favicon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.page-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .page-title {
@@ -392,7 +415,6 @@ h1 {
   display: grid;
   gap: 7px;
   grid-template-columns: 1fr 1fr;
-  margin-top: 2px;
 }
 
 .page-actions > :only-child {

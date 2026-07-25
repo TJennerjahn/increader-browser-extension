@@ -267,6 +267,7 @@ describe("compact Browser Capture popup", () => {
 
   it("shows a paired supported page as Ready without authorizing Import", async () => {
     const page: ActivePageInspection = {
+      faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
       sourceUrl: "https://example.com/article?view=full",
       tabId: 19,
@@ -300,6 +301,24 @@ describe("compact Browser Capture popup", () => {
     expect(importAuthorized).not.toHaveBeenCalled();
     expect(
       getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
+    ).toBe(false);
+    const favicon =
+      root.querySelector<HTMLImageElement>("[data-page-favicon]");
+    expect(favicon?.src).toBe("https://example.com/favicon.ico");
+    expect(favicon?.hidden).toBe(false);
+    const pageCard = root.querySelector("[data-page-card]");
+    const pageActions = root.querySelector(".page-actions");
+    expect(pageCard?.contains(pageActions)).toBe(false);
+    expect(pageActions?.parentElement).toBe(
+      root.querySelector("[data-main-view]"),
+    );
+    if (favicon === null) return;
+    fireEvent.error(favicon);
+    expect(favicon.hidden).toBe(true);
+    expect(
+      root
+        .querySelector("[data-page-favicon-fallback]")
+        ?.hasAttribute("hidden"),
     ).toBe(false);
   });
 

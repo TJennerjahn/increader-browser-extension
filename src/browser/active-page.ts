@@ -1,11 +1,13 @@
 export type ActivePageInspection =
   | {
+      faviconUrl?: string;
       kind: "supported";
       sourceUrl: string;
       tabId: number;
       title: string;
     }
   | {
+      faviconUrl?: string;
       kind: "unsupported";
       reason: string;
     };
@@ -39,9 +41,10 @@ export function createActivePageInspector(
       if (active?.id === undefined || active.url === undefined) {
         return unsupported("No active page is available.");
       }
+      const faviconUrl = safeFaviconUrl(active.favIconUrl);
       const candidate = classifyTabUrl(active.url);
       if (candidate !== null) {
-        return unsupported(candidate);
+        return unsupported(candidate, faviconUrl);
       }
 
       let results: chrome.scripting.InjectionResult<unknown>[];
@@ -76,6 +79,7 @@ export function createActivePageInspector(
       }
       return {
         kind: "supported",
+        ...(faviconUrl === undefined ? {} : { faviconUrl }),
         sourceUrl,
         tabId: active.id,
         title: observed.title,
@@ -93,7 +97,8 @@ export function createActivePageInspector(
         if (
           changeInfo.url !== undefined ||
           changeInfo.status === "complete" ||
-          "title" in changeInfo
+          "title" in changeInfo ||
+          "favIconUrl" in changeInfo
         ) {
           listener();
         }
@@ -191,8 +196,29 @@ function isObservedDocument(value: unknown): value is ObservedTopLevelDocument {
   );
 }
 
-function unsupported(reason: string): ActivePageInspection {
-  return { kind: "unsupported", reason };
+function safeFaviconUrl(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol === "http:" || url.protocol === "https:") return value;
+    return url.protocol === "data:" &&
+      value.toLowerCase().startsWith("data:image/")
+      ? value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function unsupported(
+  reason: string,
+  faviconUrl?: string,
+): ActivePageInspection {
+  return {
+    ...(faviconUrl === undefined ? {} : { faviconUrl }),
+    kind: "unsupported",
+    reason,
+  };
 }
 
 function callbackResult<T>(

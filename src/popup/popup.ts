@@ -155,10 +155,13 @@ export function mountPopup(
       >
         <div class="card-body">
           <div class="page-heading">
-            <span class="section-icon page-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <span class="page-icon" aria-hidden="true">
+              <img class="page-favicon" data-page-favicon alt="" hidden />
+              <svg data-page-favicon-fallback viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="M3 12h18"></path>
+                <path d="M12 3a15 15 0 0 1 0 18"></path>
+                <path d="M12 3a15 15 0 0 0 0 18"></path>
               </svg>
             </span>
             <div class="page-copy">
@@ -174,6 +177,9 @@ export function mountPopup(
               <p class="page-detail" data-page-detail></p>
             </div>
           </div>
+        </div>
+      </section>
+
           <div class="page-actions">
             <button
               class="primary-action btn btn-primary"
@@ -216,8 +222,6 @@ export function mountPopup(
               Discard
             </button>
           </div>
-        </div>
-      </section>
 
       </section>
     </section>
@@ -260,6 +264,14 @@ export function mountPopup(
     "[data-disconnect]",
   ) as HTMLButtonElement;
   const pageCard = requiredElement(root, "[data-page-card]") as HTMLElement;
+  const pageFavicon = requiredElement(
+    root,
+    "[data-page-favicon]",
+  ) as HTMLImageElement;
+  const pageFaviconFallback = requiredElement(
+    root,
+    "[data-page-favicon-fallback]",
+  ) as SVGElement;
   const pageTitle = requiredElement(root, "[data-page-title]") as HTMLElement;
   const pageSource = requiredElement(root, "[data-page-source]") as HTMLElement;
   const pageStatus = requiredElement(root, "[data-page-status]") as HTMLElement;
@@ -322,6 +334,22 @@ export function mountPopup(
 
   const renderConfiguredOrigin = (): void => {
     originInput.value = configuredOrigin;
+  };
+
+  const showFaviconFallback = (): void => {
+    pageFavicon.hidden = true;
+    pageFaviconFallback.removeAttribute("hidden");
+  };
+
+  const renderPageFavicon = (faviconUrl?: string): void => {
+    pageFavicon.removeAttribute("src");
+    if (faviconUrl === undefined) {
+      showFaviconFallback();
+      return;
+    }
+    pageFaviconFallback.setAttribute("hidden", "");
+    pageFavicon.hidden = false;
+    pageFavicon.src = faviconUrl;
   };
 
   const showDisconnected = (message?: string): void => {
@@ -404,6 +432,7 @@ export function mountPopup(
       return;
     }
     pageCard.hidden = false;
+    renderPageFavicon(inspected.faviconUrl);
     existingBookmarkId = null;
     readerOrigin = null;
     openReaderButton.hidden = true;
@@ -469,6 +498,7 @@ export function mountPopup(
     }
     const generation = ++pageGeneration;
     pageCard.hidden = false;
+    renderPageFavicon();
     pageTitle.textContent = "Inspecting…";
     pageSource.textContent = "";
     pageStatus.textContent = "Inspecting…";
@@ -787,6 +817,7 @@ export function mountPopup(
 
   cloudButton.addEventListener("click", onCloudConnect);
   viewToggle.addEventListener("click", onViewToggle);
+  pageFavicon.addEventListener("error", showFaviconFallback);
   selfHostedForm.addEventListener("submit", onSelfHostedSubmit);
   disconnectButton.addEventListener("click", onDisconnect);
   importButton.addEventListener("click", onImport);
@@ -852,6 +883,7 @@ export function mountPopup(
     }
     cloudButton.removeEventListener("click", onCloudConnect);
     viewToggle.removeEventListener("click", onViewToggle);
+    pageFavicon.removeEventListener("error", showFaviconFallback);
     selfHostedForm.removeEventListener("submit", onSelfHostedSubmit);
     disconnectButton.removeEventListener("click", onDisconnect);
     importButton.removeEventListener("click", onImport);
