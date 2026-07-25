@@ -12,6 +12,7 @@ describe.each(["Chrome", "Firefox"])("%s active page inspection", () => {
         expect(queryInfo).toEqual({ active: true, currentWindow: true });
         done([
           {
+            favIconUrl: "https://example.com/favicon.ico",
             id: 91,
             title: "Untrusted tab title",
             url: "https://example.com/articles/one#comments",
@@ -48,12 +49,34 @@ describe.each(["Chrome", "Firefox"])("%s active page inspection", () => {
     } as unknown as typeof chrome.scripting);
 
     await expect(inspector.inspect()).resolves.toEqual({
+      faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
       sourceUrl: "https://example.com/articles/one",
       tabId: 91,
       title: "Observed Article",
     });
     expect(executeScript).toHaveBeenCalledOnce();
+  });
+
+  it("drops favicon URLs that cannot be rendered safely", async () => {
+    vi.stubGlobal("chrome", { runtime: { lastError: undefined } });
+    const inspector = createActivePageInspector(
+      tabsApi((_query, done) => {
+        done([
+          {
+            favIconUrl: "javascript:alert(1)",
+            id: 17,
+            url: "chrome://settings",
+          } as chrome.tabs.Tab,
+        ]);
+      }),
+      { executeScript: vi.fn() } as unknown as typeof chrome.scripting,
+    );
+
+    await expect(inspector.inspect()).resolves.toEqual({
+      kind: "unsupported",
+      reason: "Browser-protected pages cannot be imported.",
+    });
   });
 
   it.each([
@@ -149,8 +172,10 @@ describe.each(["Chrome", "Firefox"])("%s active page inspection", () => {
       listener(19, { url: "https://two.example" });
     for (const listener of updatedListeners)
       listener(19, { status: "complete" });
+    for (const listener of updatedListeners)
+      listener(19, { favIconUrl: "https://two.example/favicon.ico" });
 
-    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(refresh).toHaveBeenCalledTimes(4);
     stop();
     expect(activatedListeners).toHaveLength(0);
     expect(updatedListeners).toHaveLength(0);

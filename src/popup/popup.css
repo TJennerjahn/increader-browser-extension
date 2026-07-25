@@ -20,7 +20,6 @@
   --bc: 27.8078% 0.029596 256.847952;
   --rounded-box: 1rem;
   --rounded-btn: 0.5rem;
-  --rounded-badge: 1.9rem;
   --animation-btn: 0.25s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
@@ -110,6 +109,25 @@ svg {
   padding: 0 2px 4px;
 }
 
+.btn.header-action {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  color: oklch(var(--bc) / 0.68);
+}
+
+.header-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .brand {
   display: flex;
   min-width: 0;
@@ -122,7 +140,6 @@ svg {
   height: 36px;
   flex: none;
   color: #4f46e5;
-  filter: drop-shadow(0 4px 7px oklch(var(--p) / 0.2));
 }
 
 .brand-mark svg {
@@ -158,40 +175,22 @@ h1 {
   line-height: 1.2;
 }
 
-/* Ported from the app Badge primitive. */
-.badge {
-  display: inline-flex;
-  width: fit-content;
-  height: 1.25rem;
-  align-items: center;
-  justify-content: center;
-  padding-right: 0.563rem;
-  padding-left: 0.563rem;
-  border: 1px solid oklch(var(--b2));
-  border-radius: var(--rounded-badge);
-  color: oklch(var(--bc));
-  background: oklch(var(--b1));
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  transition:
-    color 0.2s cubic-bezier(0, 0, 0.2, 1),
-    background-color 0.2s cubic-bezier(0, 0, 0.2, 1),
-    border-color 0.2s cubic-bezier(0, 0, 0.2, 1);
+.popup-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.destination {
-  max-width: 142px;
-  height: auto;
-  min-height: 22px;
-  overflow: hidden;
-  border-color: oklch(var(--p) / 0.22);
-  color: oklch(var(--p));
-  background: oklch(var(--p) / 0.08);
-  font-size: 10px;
+.view-heading {
+  padding: 3px 2px 1px;
+}
+
+.view-heading h2 {
+  margin: 0;
+  font-size: 17px;
   font-weight: 650;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
 }
 
 /* Ported from Card, CardBody, and the shared card-surface treatment. */
@@ -221,7 +220,8 @@ h1 {
 }
 
 .connection-card,
-.page-card {
+.page-card,
+.settings-form {
   overflow: hidden;
   border: 1px solid oklch(var(--b3));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
@@ -229,7 +229,8 @@ h1 {
 
 @media (prefers-color-scheme: dark) {
   .connection-card,
-  .page-card {
+  .page-card,
+  .settings-form {
     box-shadow:
       0 0 0 1px rgb(255 255 255 / 0.06),
       0 10px 30px rgb(0 0 0 / 0.35),
@@ -257,9 +258,7 @@ h1 {
   background: oklch(var(--p) / 0.09);
 }
 
-.section-icon svg,
-.settings-summary svg,
-.privacy-note > svg {
+.section-icon svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -295,27 +294,6 @@ h1 {
   line-height: 1.25;
 }
 
-.status-dot {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border: 2px solid oklch(var(--b1));
-  border-radius: 999px;
-  background: oklch(var(--bc) / 0.32);
-  box-shadow: 0 0 0 2px oklch(var(--bc) / 0.1);
-}
-
-.connection-card[data-state="connecting"] .status-dot {
-  background: oklch(var(--p));
-  box-shadow: 0 0 0 2px oklch(var(--p) / 0.16);
-  animation: status-pulse 1.6s ease-in-out infinite;
-}
-
-.connection-card[data-state="paired"] .status-dot {
-  background: oklch(var(--su));
-  box-shadow: 0 0 0 2px oklch(var(--su) / 0.16);
-}
-
 .connection-detail {
   min-height: 34px;
   margin: 1px 0 2px;
@@ -324,14 +302,55 @@ h1 {
   line-height: 1.45;
 }
 
+.connection-detail:empty {
+  display: none;
+}
+
 .connection-actions {
   display: grid;
+  gap: 6px;
+}
+
+.connection-actions:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+.disconnect-action {
+  width: auto;
+  height: 26px;
+  min-height: 26px;
+  padding-right: 9px;
+  padding-left: 9px;
+  font-size: 11px;
 }
 
 .page-icon {
-  border-color: oklch(var(--s) / 0.2);
-  color: oklch(var(--s));
-  background: oklch(var(--s) / 0.09);
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  color: oklch(var(--bc) / 0.48);
+  background: oklch(var(--b2));
+}
+
+.page-favicon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.page-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .page-title {
@@ -396,7 +415,6 @@ h1 {
   display: grid;
   gap: 7px;
   grid-template-columns: 1fr 1fr;
-  margin-top: 2px;
 }
 
 .page-actions > :only-child {
@@ -517,72 +535,11 @@ h1 {
   font-size: 0.875rem;
 }
 
-/* Ported from the app Collapse and Input compositions. */
-.settings {
-  overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: var(--rounded-box);
-  background: oklch(var(--b2) / 0.58);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.settings[open] {
-  border-color: oklch(var(--b3));
-  background: oklch(var(--b2) / 0.76);
-}
-
-.settings-summary {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
-  border-radius: inherit;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-  color: oklch(var(--bc) / 0.72);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  user-select: none;
-}
-
-.settings-summary::-webkit-details-marker {
-  display: none;
-}
-
-.settings-summary:focus-visible {
-  outline-color: oklch(var(--p));
-}
-
-.settings-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-summary svg {
-  width: 15px;
-  height: 15px;
-}
-
-.settings-summary .chevron {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s ease;
-}
-
-.settings[open] .chevron {
-  transform: rotate(90deg);
-}
-
-.settings-content {
+/* Ported from the app Input composition. */
+.settings-form {
   display: grid;
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 12px;
 }
 
 .label {
@@ -629,28 +586,6 @@ h1 {
   color: oklch(var(--bc) / 0.38);
 }
 
-.privacy-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 2px 5px 0;
-  color: oklch(var(--bc) / 0.5);
-}
-
-.privacy-note > svg {
-  width: 15px;
-  height: 15px;
-  flex: none;
-  margin-top: 1px;
-  color: oklch(var(--su));
-}
-
-.privacy-note p {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.42;
-}
-
 @keyframes button-pop {
   0% {
     transform: scale(var(--btn-focus-scale));
@@ -662,17 +597,6 @@ h1 {
 
   100% {
     transform: scale(1);
-  }
-}
-
-@keyframes status-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.45;
   }
 }
 

@@ -35,19 +35,35 @@ describe("compact Browser Capture popup", () => {
 
     expect(getByText(root, "Browser Capture")).toBeTruthy();
     expect(getByText(root, "Not connected")).toBeTruthy();
-    expect(getByText(root, "Increader Cloud")).toBeTruthy();
     expect(getByText(root, "Connection settings")).toBeTruthy();
+    expect(
+      getByRole<HTMLInputElement>(root, "textbox", {
+        name: "Increader instance origin",
+      }).value,
+    ).toBe(CLOUD_INSTANCE_ORIGIN);
+    expect(
+      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
+    ).toBe(false);
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
+      true,
+    );
 
     fireEvent.click(
-      getByRole(root, "button", { name: "Connect to Increader Cloud" }),
+      getByRole(root, "button", { name: "Connect to Increader" }),
     );
     await vi.waitFor(() => {
       expect(connect).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
       expect(getByText(root, "Paired")).toBeTruthy();
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
     });
   });
 
-  it("shows the approved account destination and disconnects explicitly", async () => {
+  it("shows the paired state without a destination badge and disconnects explicitly", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const pairing: Pairing = {
       accessToken: () => Promise.resolve("bca_memory"),
@@ -74,16 +90,94 @@ describe("compact Browser Capture popup", () => {
 
     await vi.waitFor(() => {
       expect(getByText(root, "Paired")).toBeTruthy();
-      expect(getByText(root, "Home Reader")).toBeTruthy();
+      expect(
+        getByRole(root, "button", { name: "Open connection settings" }),
+      ).toBeTruthy();
     });
-    fireEvent.click(getByRole(root, "button", { name: "Disconnect" }));
+    const settingsView = root.querySelector<HTMLElement>(
+      "[data-settings-view]",
+    );
+    const mainView = root.querySelector<HTMLElement>("[data-main-view]");
+    const connectionCard = root.querySelector("[data-connection-card]");
+    const pageCard = root.querySelector("[data-page-card]");
+    expect(settingsView?.contains(connectionCard)).toBe(true);
+    expect(mainView?.contains(pageCard)).toBe(true);
+    expect(settingsView?.hidden).toBe(true);
+    expect(mainView?.hidden).toBe(false);
+    fireEvent.click(
+      getByRole(root, "button", { name: "Open connection settings" }),
+    );
+    expect(settingsView?.hidden).toBe(false);
+    expect(mainView?.hidden).toBe(true);
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.textContent.trim(),
+    ).toBe("");
+    expect(root.querySelector("[data-destination]")).toBeNull();
+    expect(root.textContent).not.toContain("Browser Capture sends only to");
+    expect(root.querySelector(".status-dot")).toBeNull();
+    const disconnectButton =
+      root.querySelector<HTMLButtonElement>("[data-disconnect]");
+    expect(disconnectButton?.hidden).toBe(false);
+    expect(disconnectButton?.closest(".section-heading")).not.toBeNull();
+    if (disconnectButton === null) return;
+    fireEvent.click(disconnectButton);
     await vi.waitFor(() => {
       expect(disconnect).toHaveBeenCalledOnce();
       expect(getByText(root, "Not connected")).toBeTruthy();
     });
+    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
+      true,
+    );
   });
 
-  it("keeps self-hosted discovery inside connection settings", async () => {
+  it("saves a self-hosted origin before the main button pairs with it", async () => {
+    const connect = vi.fn().mockResolvedValue({
+      origin: "https://reader.example",
+      displayName: "Home Reader",
+      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
+    });
+    const pairing: Pairing = {
+      accessToken: () => Promise.reject(new Error("not paired")),
+      connect,
+      current: () => Promise.resolve(null),
+      currentOrigin: () => Promise.resolve(null),
+      disconnect: () => Promise.resolve(),
+      discover: () => Promise.reject(new Error("not used")),
+    };
+    const save = vi.fn().mockResolvedValue(undefined);
+    const root = document.createElement("main");
+    mountPopup(root, pairing, undefined, {
+      load: () => Promise.resolve(null),
+      save,
+    });
+    const input = getByRole<HTMLInputElement>(root, "textbox", {
+      name: "Increader instance origin",
+    });
+
+    fireEvent.input(input, { target: { value: "https://reader.example/" } });
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    fireEvent.submit(form);
+
+    await vi.waitFor(() => {
+      expect(save).toHaveBeenCalledWith("https://reader.example");
+      expect(input.value).toBe("https://reader.example");
+    });
+    expect(connect).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      getByRole(root, "button", { name: "Connect to Increader" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(connect).toHaveBeenCalledWith("https://reader.example");
+      expect(getByText(root, "Paired")).toBeTruthy();
+    });
+  });
+
+  it("restores the saved connection origin when the popup reopens", async () => {
     const connect = vi.fn().mockResolvedValue({
       origin: "https://reader.example",
       displayName: "Home Reader",
@@ -99,21 +193,25 @@ describe("compact Browser Capture popup", () => {
       discover: () => Promise.reject(new Error("not used")),
     };
     const root = document.createElement("main");
-    mountPopup(root, pairing);
-    const input = getByRole(root, "textbox", {
-      name: "Self-hosted Increader origin",
+
+    mountPopup(root, pairing, undefined, {
+      load: () => Promise.resolve("https://reader.example"),
+      save: vi.fn(),
     });
 
-    fireEvent.input(input, { target: { value: "https://reader.example/" } });
-    const form = input.closest("form");
-    expect(form).not.toBeNull();
-    if (form === null) return;
-    fireEvent.submit(form);
+    await vi.waitFor(() => {
+      expect(
+        getByRole<HTMLInputElement>(root, "textbox", {
+          name: "Increader instance origin",
+        }).value,
+      ).toBe("https://reader.example");
+    });
+    fireEvent.click(
+      getByRole(root, "button", { name: "Connect to Increader" }),
+    );
 
     await vi.waitFor(() => {
-      expect(connect).toHaveBeenCalledWith("https://reader.example/");
-      expect(getByText(root, "Home Reader")).toBeTruthy();
-      expect(getByText(root, "Paired")).toBeTruthy();
+      expect(connect).toHaveBeenCalledWith("https://reader.example");
     });
   });
 
@@ -169,6 +267,7 @@ describe("compact Browser Capture popup", () => {
 
   it("shows a paired supported page as Ready without authorizing Import", async () => {
     const page: ActivePageInspection = {
+      faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
       sourceUrl: "https://example.com/article?view=full",
       tabId: 19,
@@ -193,9 +292,6 @@ describe("compact Browser Capture popup", () => {
         getByText(root, "https://example.com/article?view=full"),
       ).toBeTruthy();
       expect(getByText(root, "Ready")).toBeTruthy();
-      expect(
-        getByText(root, /title, URL, and document type are read/),
-      ).toBeTruthy();
     });
     expect(lookupCall).toHaveBeenCalledWith(
       "https://reader.example",
@@ -205,6 +301,24 @@ describe("compact Browser Capture popup", () => {
     expect(importAuthorized).not.toHaveBeenCalled();
     expect(
       getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
+    ).toBe(false);
+    const favicon =
+      root.querySelector<HTMLImageElement>("[data-page-favicon]");
+    expect(favicon?.src).toBe("https://example.com/favicon.ico");
+    expect(favicon?.hidden).toBe(false);
+    const pageCard = root.querySelector("[data-page-card]");
+    const pageActions = root.querySelector(".page-actions");
+    expect(pageCard?.contains(pageActions)).toBe(false);
+    expect(pageActions?.parentElement).toBe(
+      root.querySelector("[data-main-view]"),
+    );
+    if (favicon === null) return;
+    fireEvent.error(favicon);
+    expect(favicon.hidden).toBe(true);
+    expect(
+      root
+        .querySelector("[data-page-favicon-fallback]")
+        ?.hasAttribute("hidden"),
     ).toBe(false);
   });
 
@@ -431,8 +545,7 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("opens a completed Bookmark at its persisted job origin after Pairing changes", async () => {
-    const openReader = vi.fn().mockResolvedValue(undefined);
+  it("does not restore the last completed Bookmark after the popup reopens", async () => {
     const captureJob: CaptureJobClient = {
       current: () =>
         Promise.resolve({
@@ -459,20 +572,19 @@ describe("compact Browser Capture popup", () => {
       }),
       captureJob,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
-      openReader,
+      openReader: vi.fn(),
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
+      expect(getByText(root, "Ready")).toBeTruthy();
     });
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
-
-    expect(openReader).toHaveBeenCalledWith(
-      "https://original-reader.example/bookmarks/84",
-    );
+    expect(root.textContent).not.toContain("Extracted article");
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
   });
 
-  it("restores a completed job even when the newly active tab is unsupported", async () => {
+  it("shows the active unsupported page instead of a previous completion", async () => {
     const inspected = deferred<ActivePageInspection>();
     const captureJob: CaptureJobClient = {
       current: () =>
@@ -500,19 +612,18 @@ describe("compact Browser Capture popup", () => {
       lookup: { lookup: vi.fn() },
       openReader: vi.fn(),
     });
-    await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-    });
-
     inspected.resolve({
       kind: "unsupported",
       reason: "Browser-protected pages cannot be imported.",
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-      expect(getByText(root, "Extracted article")).toBeTruthy();
+      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(
+        getByText(root, "Browser-protected pages cannot be imported."),
+      ).toBeTruthy();
     });
+    expect(root.textContent).not.toContain("Extracted article");
   });
 
   it("offers explicit Retry and Discard and confirms replacement before a new Import", async () => {

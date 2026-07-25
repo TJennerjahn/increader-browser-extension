@@ -1,4 +1,7 @@
-import { createTabOpener } from "../browser/chrome-adapters";
+import {
+  createConnectionOriginPreferenceStore,
+  createTabOpener,
+} from "../browser/chrome-adapters";
 import { createActivePageInspector } from "../browser/active-page";
 import { createBookmarkLookupHttpClient } from "../protocol/bookmark-lookup-http";
 import { createCaptureJobClient } from "../browser/capture-job-runtime";
@@ -14,12 +17,17 @@ if (root === null) {
 const pairing = createPairingClient();
 const releaseBackground = holdBackgroundForPopup();
 
-const unmount = mountPopup(root, pairing, {
-  activePage: createActivePageInspector(),
-  captureJob: createCaptureJobClient(),
-  lookup: createBookmarkLookupHttpClient(),
-  openReader: createTabOpener(),
-});
+const unmount = mountPopup(
+  root,
+  pairing,
+  {
+    activePage: createActivePageInspector(),
+    captureJob: createCaptureJobClient(),
+    lookup: createBookmarkLookupHttpClient(),
+    openReader: createTabOpener(),
+  },
+  createConnectionOriginPreferenceStore(),
+);
 
 globalThis.addEventListener(
   "unload",

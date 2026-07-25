@@ -12,6 +12,7 @@ import type {
 import { runtimeOriginPermissionPattern } from "./runtime-origin-permission";
 
 const DESTINATION_STORAGE_KEY = "browserCaptureDestinationOrigin";
+const CONNECTION_ORIGIN_STORAGE_KEY = "browserCaptureConnectionOrigin";
 const CREDENTIAL_STORAGE_KEY = "browserCapturePairingCredential";
 const INSTALLATION_STORAGE_KEY = "browserCaptureInstallationId";
 const PAIRING_OPERATION_STORAGE_KEY = "browserCapturePairingOperation";
@@ -64,6 +65,24 @@ export function createDestinationStore(
     },
     async clear() {
       await storageRemove(storage, DESTINATION_STORAGE_KEY);
+    },
+  };
+}
+
+export function createConnectionOriginPreferenceStore(
+  storage: chrome.storage.StorageArea = chrome.storage.local,
+): {
+  load(): Promise<string | null>;
+  save(origin: string): Promise<void>;
+} {
+  return {
+    async load() {
+      const values = await storageGet(storage, CONNECTION_ORIGIN_STORAGE_KEY);
+      const origin = values[CONNECTION_ORIGIN_STORAGE_KEY];
+      return typeof origin === "string" ? origin : null;
+    },
+    async save(origin) {
+      await storageSet(storage, { [CONNECTION_ORIGIN_STORAGE_KEY]: origin });
     },
   };
 }

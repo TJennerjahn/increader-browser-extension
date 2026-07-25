@@ -185,7 +185,22 @@ try {
       await popup.$eval("details", (details) => {
         details.open = true;
       });
-      await popup.type("#self-hosted-origin", instanceOrigin);
+      await popup.$eval(
+        "#self-hosted-origin",
+        (input, value) => {
+          input.value = value;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        },
+        instanceOrigin,
+      );
+      await popup.click("[data-self-hosted-form] button[type=submit]");
+      await popup.waitForFunction(
+        (origin) =>
+          document.querySelector("#self-hosted-origin")?.value ===
+          new URL(origin).origin,
+        {},
+        instanceOrigin,
+      );
     }
 
     const authPromise = browser.waitForTarget(
@@ -195,11 +210,7 @@ try {
           .startsWith(`${instanceOrigin}/browser-capture/pairing/approve`),
       { timeout: 15_000 },
     );
-    await popup.click(
-      cloud
-        ? "[data-cloud-connect]"
-        : "[data-self-hosted-form] button[type=submit]",
-    );
+    await popup.click("[data-cloud-connect]");
     await delay(500);
     const chromeWindows = execFileSync(
       "xdotool",
@@ -611,11 +622,27 @@ async function runFirefoxWorkflow({
       await firefoxPopupClick(driver, "[data-cloud-connect]");
     } else {
       await firefoxPopupClick(driver, "details > summary");
-      await firefoxPopupType(driver, "#self-hosted-origin", instanceOrigin);
+      await firefoxPopupEvaluate(
+        driver,
+        `
+          const input = document.querySelector("#self-hosted-origin");
+          input.value = ${JSON.stringify(instanceOrigin)};
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          return true;
+        `,
+      );
       await firefoxPopupClick(
         driver,
         "[data-self-hosted-form] button[type=submit]",
       );
+      await waitFor(async () => {
+        const saved = await firefoxPopupEvaluate(
+          driver,
+          `return document.querySelector("#self-hosted-origin")?.value;`,
+        );
+        return saved === new URL(instanceOrigin).origin;
+      });
+      await firefoxPopupClick(driver, "[data-cloud-connect]");
     }
     await delay(500);
     console.log(
@@ -1460,10 +1487,6 @@ async function firefoxPopupEvaluate(driver, script) {
 
 async function firefoxPopupClick(driver, selector) {
   await firefoxPopupElementCommand(driver, "click", selector);
-}
-
-async function firefoxPopupType(driver, selector, text) {
-  await firefoxPopupElementCommand(driver, "type", selector, text);
 }
 
 async function firefoxPopupElementCommand(driver, command, selector, text) {
