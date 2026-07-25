@@ -9,7 +9,9 @@ import type {
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
-import type { BrowserCaptureImporter } from "../capture-package/importer";
+import type {
+  CaptureJobClient,
+} from "../browser/capture-job-runtime";
 import { CLOUD_INSTANCE_ORIGIN, mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
@@ -298,24 +300,35 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("captures and transfers the revalidated page after explicit Import", async () => {
+  it("commands the background job and renders capture progress, Sending, and Imported", async () => {
     const page: ActivePageInspection = {
       kind: "supported",
       sourceUrl: "https://example.com/live",
       tabId: 24,
       title: "Live article",
     };
-    const importPage = vi.fn().mockResolvedValue({
-      bookmarkId: 84,
-      created: true,
-      title: "Extracted article",
-    });
-    const importer: BrowserCaptureImporter = { importPage };
+    const startImport = vi.fn().mockResolvedValue({ status: "started" });
+    let observe:
+      | ((state: Awaited<ReturnType<CaptureJobClient["current"]>>) => void)
+      | undefined;
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport,
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe(listener) {
+        observe = listener;
+        return () => {
+          observe = undefined;
+        };
+      },
+    };
     const root = document.createElement("main");
 
     mountPopup(root, paired(), {
       activePage: inspector(page),
-      importer,
+      captureJob,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
       openReader: vi.fn(),
     });
@@ -326,11 +339,43 @@ describe("compact Browser Capture popup", () => {
     fireEvent.click(getByRole(root, "button", { name: "Import" }));
 
     await vi.waitFor(() => {
-      expect(importPage).toHaveBeenCalledWith(
+      expect(startImport).toHaveBeenCalledWith(
         page,
         "https://reader.example",
-        "bca_memory",
+        false,
       );
+    });
+    observe?.({
+      phase: "capturing",
+      page,
+      completedAssets: 2,
+      totalAssets: 5,
+    });
+    expect(getByText(root, "Capturing page")).toBeTruthy();
+    expect(getByText(root, "Capturing images 2 of 5…")).toBeTruthy();
+    expect(getByRole(root, "button", { name: "Cancel" })).toBeTruthy();
+
+    observe?.({
+      phase: "sending",
+      captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+    });
+    expect(getByText(root, "Sending to Increader")).toBeTruthy();
+    expect(
+      getByText(root, "Waiting for Increader to finish importing…"),
+    ).toBeTruthy();
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-cancel]")?.hidden,
+    ).toBe(true);
+
+    observe?.({
+      phase: "completed",
+      captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      outcome: "created",
+      bookmarkId: 84,
+      title: "Extracted article",
+      origin: "https://reader.example",
+    });
+    await vi.waitFor(() => {
       expect(getByText(root, "Imported")).toBeTruthy();
       expect(getByText(root, "Extracted article")).toBeTruthy();
       expect(
@@ -338,9 +383,161 @@ describe("compact Browser Capture popup", () => {
       ).toBeTruthy();
     });
   });
+
+  it("opens a completed Bookmark at its persisted job origin after Pairing changes", async () => {
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    const captureJob: CaptureJobClient = {
+      current: () =>
+        Promise.resolve({
+          phase: "completed",
+          captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+          outcome: "existing",
+          bookmarkId: 84,
+          title: "Extracted article",
+          origin: "https://original-reader.example",
+        }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+    mountPopup(root, pairedAt("https://replacement-reader.example"), {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://publisher.example/article",
+        tabId: 24,
+        title: "Live article",
+      }),
+      captureJob,
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+      openReader,
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Already in Increader")).toBeTruthy();
+    });
+    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
+
+    expect(openReader).toHaveBeenCalledWith(
+      "https://original-reader.example/bookmarks/84",
+    );
+  });
+
+  it("restores a completed job even when the newly active tab is unsupported", async () => {
+    const inspected = deferred<ActivePageInspection>();
+    const captureJob: CaptureJobClient = {
+      current: () =>
+        Promise.resolve({
+          phase: "completed",
+          captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+          outcome: "created",
+          bookmarkId: 84,
+          title: "Extracted article",
+          origin: "https://reader.example",
+        }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+    mountPopup(root, paired(), {
+      activePage: {
+        inspect: () => inspected.promise,
+        observe: () => () => undefined,
+      },
+      captureJob,
+      lookup: { lookup: vi.fn() },
+      openReader: vi.fn(),
+    });
+    await vi.waitFor(() => {
+      expect(getByText(root, "Imported")).toBeTruthy();
+    });
+
+    inspected.resolve({
+      kind: "unsupported",
+      reason: "Browser-protected pages cannot be imported.",
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Imported")).toBeTruthy();
+      expect(getByText(root, "Extracted article")).toBeTruthy();
+    });
+  });
+
+  it("offers explicit Retry and Discard and confirms replacement before a new Import", async () => {
+    const page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://publisher.example/replacement",
+      tabId: 25,
+      title: "Replacement article",
+    };
+    const retry = vi.fn();
+    const discard = vi.fn();
+    const startImport = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "replacement-required" })
+      .mockResolvedValueOnce({ status: "started" });
+    const confirmReplacement = vi.fn(() => true);
+    const captureJob: CaptureJobClient = {
+      current: () =>
+        Promise.resolve({
+          phase: "failed",
+          captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+          message: "network unavailable",
+          retryable: true,
+        }),
+      startImport,
+      retry,
+      cancel: vi.fn(),
+      discard,
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+    mountPopup(root, paired(), {
+      activePage: inspector(page),
+      captureJob,
+      confirmReplacement,
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Needs attention")).toBeTruthy();
+      expect(getByText(root, "network unavailable")).toBeTruthy();
+    });
+    fireEvent.click(getByRole(root, "button", { name: "Retry" }));
+    fireEvent.click(getByRole(root, "button", { name: "Discard" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(discard).toHaveBeenCalledOnce();
+
+    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+    await vi.waitFor(() => {
+      expect(confirmReplacement).toHaveBeenCalledOnce();
+      expect(startImport).toHaveBeenNthCalledWith(
+        1,
+        page,
+        "https://reader.example",
+        false,
+      );
+      expect(startImport).toHaveBeenNthCalledWith(
+        2,
+        page,
+        "https://reader.example",
+        true,
+      );
+    });
+  });
 });
 
 function paired(): Pairing {
+  return pairedAt("https://reader.example");
+}
+
+function pairedAt(origin: string): Pairing {
   return {
     accessToken: () => Promise.resolve("bca_memory"),
     connect: () => Promise.reject(new Error("not used")),
@@ -348,10 +545,10 @@ function paired(): Pairing {
       Promise.resolve({
         displayName: "Home Reader",
         installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-        origin: "https://reader.example",
+        origin,
         pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
       }),
-    currentOrigin: () => Promise.resolve("https://reader.example"),
+    currentOrigin: () => Promise.resolve(origin),
     disconnect: () => Promise.resolve(),
     discover: () => Promise.reject(new Error("not used")),
   };
@@ -362,4 +559,15 @@ function inspector(page: ActivePageInspection): ActivePageInspector {
     inspect: () => Promise.resolve(page),
     observe: () => () => undefined,
   };
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }

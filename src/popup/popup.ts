@@ -4,13 +4,15 @@ import type {
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
-import type { BrowserCaptureImporter } from "../capture-package/importer";
+import type { CaptureJobClient } from "../browser/capture-job-runtime";
+import type { CaptureJobState } from "../capture-job/capture-job";
 
 export const CLOUD_INSTANCE_ORIGIN = "https://app.increader.com";
 
 export interface PopupPageDependencies {
   activePage: ActivePageInspector;
-  importer?: BrowserCaptureImporter;
+  captureJob?: CaptureJobClient;
+  confirmReplacement?(): boolean;
   lookup: BookmarkLookupClient;
   openReader(url: string): Promise<void>;
 }
@@ -56,6 +58,15 @@ export function mountPopup(
           </button>
           <button class="secondary-action" type="button" data-open-reader hidden>
             Open Reader
+          </button>
+          <button class="secondary-action" type="button" data-cancel hidden>
+            Cancel
+          </button>
+          <button class="primary-action" type="button" data-retry hidden>
+            Retry
+          </button>
+          <button class="secondary-action" type="button" data-discard hidden>
+            Discard
           </button>
         </div>
       </section>
@@ -123,6 +134,18 @@ export function mountPopup(
     root,
     "[data-open-reader]",
   ) as HTMLButtonElement;
+  const cancelButton = requiredElement(
+    root,
+    "[data-cancel]",
+  ) as HTMLButtonElement;
+  const retryButton = requiredElement(
+    root,
+    "[data-retry]",
+  ) as HTMLButtonElement;
+  const discardButton = requiredElement(
+    root,
+    "[data-discard]",
+  ) as HTMLButtonElement;
   let disposed = false;
   let pairedDestination: {
     displayName: string;
@@ -131,14 +154,17 @@ export function mountPopup(
   let currentPage: Extract<ActivePageInspection, { kind: "supported" }> | null =
     null;
   let existingBookmarkId: number | null = null;
+  let readerOrigin: string | null = null;
   let pageGeneration = 0;
   let importActive = false;
+  let currentJobState: CaptureJobState = { phase: "ready" };
   const isDisposed = (): boolean => disposed;
 
   const showDisconnected = (message?: string): void => {
     pairedDestination = null;
     currentPage = null;
     existingBookmarkId = null;
+    readerOrigin = null;
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
@@ -179,6 +205,7 @@ export function mountPopup(
     }
     pageCard.hidden = false;
     existingBookmarkId = null;
+    readerOrigin = null;
     openReaderButton.hidden = true;
     if (inspected.kind === "unsupported") {
       currentPage = null;
@@ -187,6 +214,7 @@ export function mountPopup(
       pageStatus.textContent = "Unsupported";
       pageDetail.textContent = inspected.reason;
       importButton.disabled = true;
+      renderJobState(currentJobState);
       return;
     }
 
@@ -209,6 +237,7 @@ export function mountPopup(
       importButton.disabled = false;
       if (result?.exists === true && result.bookmarkId !== undefined) {
         existingBookmarkId = result.bookmarkId;
+        readerOrigin = pairedDestination.origin;
         pageStatus.textContent = "Already in Increader";
         pageDetail.textContent = result.title ?? "";
         openReaderButton.hidden = false;
@@ -216,6 +245,7 @@ export function mountPopup(
         pageStatus.textContent = "Ready";
         pageDetail.textContent = "Choose Import to capture this exact page.";
       }
+      renderJobState(currentJobState);
     } catch (error) {
       if (isDisposed() || generation !== pageGeneration) return;
       currentPage = null;
@@ -225,6 +255,7 @@ export function mountPopup(
           ? error.message
           : "Reconnect this browser and try again.";
       importButton.disabled = true;
+      renderJobState(currentJobState);
     }
   };
 
@@ -244,6 +275,9 @@ export function mountPopup(
     pageDetail.textContent = "";
     importButton.disabled = true;
     openReaderButton.hidden = true;
+    if (currentJobState.phase !== "ready") {
+      renderJobState(currentJobState);
+    }
     let inspected: ActivePageInspection;
     try {
       inspected = await pageDependencies.activePage.inspect();
@@ -339,22 +373,34 @@ export function mountPopup(
             detail: freshPage,
           }),
         );
-        if (pageDependencies.importer === undefined) {
+        if (pageDependencies.captureJob === undefined) {
           return;
         }
-        const accessToken = await pairing.accessToken();
-        const outcome = await pageDependencies.importer.importPage(
+        let started = await pageDependencies.captureJob.startImport(
           freshPage,
           destinationOrigin,
-          accessToken,
+          false,
         );
-        if (isDisposed()) return;
-        existingBookmarkId = outcome.bookmarkId;
-        pageStatus.textContent = outcome.created
-          ? "Imported"
-          : "Already in Increader";
-        pageDetail.textContent = outcome.title;
-        openReaderButton.hidden = false;
+        if (started.status === "replacement-required") {
+          const confirmed =
+            pageDependencies.confirmReplacement?.() ??
+            globalThis.confirm(
+              "Discard the Capture Package waiting for Retry and import this page instead?",
+            );
+          if (!confirmed) {
+            importActive = false;
+            renderJobState(currentJobState);
+            return;
+          }
+          started = await pageDependencies.captureJob.startImport(
+            freshPage,
+            destinationOrigin,
+            true,
+          );
+        }
+        if (started.status !== "started") {
+          importActive = false;
+        }
       })
       .catch((error: unknown) => {
         if (isDisposed()) return;
@@ -370,14 +416,14 @@ export function mountPopup(
   const onOpenReader = (): void => {
     if (
       pageDependencies === undefined ||
-      pairedDestination === null ||
+      readerOrigin === null ||
       existingBookmarkId === null
     ) {
       return;
     }
     const readerUrl = new URL(
       `/bookmarks/${String(existingBookmarkId)}`,
-      `${pairedDestination.origin}/`,
+      `${readerOrigin}/`,
     ).toString();
     openReaderButton.disabled = true;
     void pageDependencies
@@ -393,16 +439,91 @@ export function mountPopup(
         }
       });
   };
+  const onCancel = (): void => {
+    void pageDependencies?.captureJob?.cancel();
+  };
+  const onRetry = (): void => {
+    void pageDependencies?.captureJob?.retry();
+  };
+  const onDiscard = (): void => {
+    void pageDependencies?.captureJob?.discard();
+  };
+
+  function renderJobState(next: CaptureJobState): void {
+    currentJobState = next;
+    cancelButton.hidden = true;
+    retryButton.hidden = true;
+    discardButton.hidden = true;
+    if (next.phase === "ready") {
+      importActive = false;
+      if (next.notice !== undefined) {
+        pageStatus.textContent = "Ready";
+        pageDetail.textContent = next.notice;
+      }
+      importButton.disabled = currentPage === null;
+      return;
+    }
+    pageCard.hidden = false;
+    openReaderButton.hidden = true;
+    if (next.phase === "capturing") {
+      importActive = true;
+      pageStatus.textContent = "Capturing page";
+      pageDetail.textContent =
+        next.totalAssets === undefined
+          ? "Preparing the page and finding images…"
+          : `Capturing images ${String(next.completedAssets)} of ${String(next.totalAssets)}…`;
+      importButton.disabled = true;
+      cancelButton.hidden = false;
+      return;
+    }
+    if (next.phase === "sending") {
+      importActive = true;
+      pageStatus.textContent = "Sending to Increader";
+      pageDetail.textContent = "Waiting for Increader to finish importing…";
+      importButton.disabled = true;
+      return;
+    }
+    if (next.phase === "completed") {
+      importActive = false;
+      existingBookmarkId = next.bookmarkId;
+      readerOrigin = next.origin;
+      pageStatus.textContent =
+        next.outcome === "created" ? "Imported" : "Already in Increader";
+      pageDetail.textContent = next.title;
+      openReaderButton.hidden = false;
+      importButton.disabled = currentPage === null;
+      return;
+    }
+    importActive = false;
+    pageStatus.textContent = "Needs attention";
+    pageDetail.textContent = next.message;
+    importButton.disabled = currentPage === null;
+    if (next.retryable) {
+      retryButton.hidden = false;
+      discardButton.hidden = false;
+    }
+  }
+
   cloudButton.addEventListener("click", onCloudConnect);
   selfHostedForm.addEventListener("submit", onSelfHostedSubmit);
   disconnectButton.addEventListener("click", onDisconnect);
   importButton.addEventListener("click", onImport);
   openReaderButton.addEventListener("click", onOpenReader);
+  cancelButton.addEventListener("click", onCancel);
+  retryButton.addEventListener("click", onRetry);
+  discardButton.addEventListener("click", onDiscard);
   const stopObserving = pageDependencies?.activePage.observe(() => {
     if (pairedDestination !== null && !importActive) {
       void refreshPage();
     }
   });
+  const stopObservingJob = pageDependencies?.captureJob?.observe(
+    renderJobState,
+  );
+  void pageDependencies?.captureJob
+    ?.current()
+    .then(renderJobState)
+    .catch(() => undefined);
 
   void pairing.current().then((current) => {
     if (!disposed && current !== null) {
@@ -417,7 +538,11 @@ export function mountPopup(
     disconnectButton.removeEventListener("click", onDisconnect);
     importButton.removeEventListener("click", onImport);
     openReaderButton.removeEventListener("click", onOpenReader);
+    cancelButton.removeEventListener("click", onCancel);
+    retryButton.removeEventListener("click", onRetry);
+    discardButton.removeEventListener("click", onDiscard);
     stopObserving?.();
+    stopObservingJob?.();
   };
 }
 

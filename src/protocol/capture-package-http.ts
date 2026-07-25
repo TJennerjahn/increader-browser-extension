@@ -11,6 +11,7 @@ export interface CapturePackageHttpClient {
     origin: string,
     accessToken: string,
     staged: StagedCapturePackage,
+    signal?: AbortSignal,
   ): Promise<CapturePackageOutcome>;
 }
 
@@ -18,7 +19,7 @@ export function createCapturePackageHttpClient(
   fetcher: typeof fetch = fetch,
 ): CapturePackageHttpClient {
   return {
-    async transfer(origin, accessToken, staged) {
+    async transfer(origin, accessToken, staged, signal) {
       const body = new FormData();
       body.append(
         "manifest",
@@ -44,6 +45,7 @@ export function createCapturePackageHttpClient(
             Authorization: `Bearer ${accessToken}`,
           },
           body,
+          signal,
         },
       );
       if (response.status !== 200 && response.status !== 201) {

@@ -13,9 +13,10 @@ bounded Capture Package only to that instance, and enters Increader's normal
 Bookmark Import Flow.
 
 The current implementation includes destination discovery, explicit Browser
-Capture Pairing, active-page inspection, exact Bookmark Lookup, and atomic
-live-DOM Capture Packages with selected images. It does not serialize or
-transfer DOM or asset content before Import.
+Capture Pairing, active-page inspection, exact Bookmark Lookup, atomic live-DOM
+Capture Packages with selected images, and the durable Browser Capture Job
+lifecycle. It does not serialize or transfer DOM or asset content before
+Import.
 
 ## Browser support
 
@@ -88,10 +89,13 @@ No build fetches the other repository or a moving schema.
 
 The deep Pairing interface owns destination discovery and credential
 lifecycle. The active-page interface owns the minimal top-frame inspection. The
-deep Capture Job interface will own capture, local staging, transfer, retry,
-and discard. The popup depends on those interfaces rather than browser
-internals. Increader remains the sole owner of Article Extraction and normal
-Bookmark behavior.
+background-owned Capture Job interface owns capture, extension-origin IndexedDB
+staging, transfer, explicit same-package Retry, and Discard. Closing the popup
+does not cancel it. Interrupted transfers remain visible as action-required
+failures and never retry automatically; completed and discarded jobs promptly
+remove staged page bytes. The popup depends on that interface rather than
+browser internals. Increader remains the sole owner of Article Extraction and
+normal Bookmark behavior.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 [privacy](docs/privacy.md), and the [permission rationale](docs/permissions.md).

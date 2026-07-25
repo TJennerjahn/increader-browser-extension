@@ -46,6 +46,10 @@ async function buildBrowser(browser) {
     path.join(repositoryRoot, "src", "popup", "popup.css"),
     path.join(browserRoot, "popup.css")
   );
+  await cp(
+    path.join(repositoryRoot, "src", "assets", "notification.svg"),
+    path.join(browserRoot, "notification.svg")
+  );
 
   const manifest = JSON.parse(
     await readFile(

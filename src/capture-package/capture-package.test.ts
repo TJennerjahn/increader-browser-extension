@@ -176,13 +176,17 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
       randomUuid: () => "019c0000-0000-7000-8000-000000000002",
       scripting: executingScripting(),
     });
+    const progress = vi.fn();
 
-    const staged = await assembler.capture({
-      kind: "supported",
-      sourceUrl: `${location.origin}/article?view=full`,
-      tabId: 19,
-      title: "Rendered title",
-    });
+    const staged = await assembler.capture(
+      {
+        kind: "supported",
+        sourceUrl: `${location.origin}/article?view=full`,
+        tabId: 19,
+        title: "Rendered title",
+      },
+      progress,
+    );
 
     expect(staged.manifest.assets).toEqual([
       expect.objectContaining({
@@ -234,6 +238,12 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
         /src="increader:browser-capture-asset\/asset-0001"/g,
       ),
     ).toHaveLength(2);
+    expect(progress.mock.calls).toEqual([
+      [{ completedAssets: 0, totalAssets: 3 }],
+      [{ completedAssets: 1, totalAssets: 3 }],
+      [{ completedAssets: 2, totalAssets: 3 }],
+      [{ completedAssets: 3, totalAssets: 3 }],
+    ]);
   });
 
   it("acquires same-origin, credentialed CORS, data, and blob bytes by magic while isolating one failed image", async () => {

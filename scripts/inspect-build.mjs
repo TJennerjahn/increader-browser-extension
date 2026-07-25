@@ -13,6 +13,7 @@ const expectedFiles = [
   "background.js",
   "main.js",
   "manifest.json",
+  "notification.svg",
   "popup.css",
   "popup.html"
 ];

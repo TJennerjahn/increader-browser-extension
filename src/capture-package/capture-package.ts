@@ -67,7 +67,14 @@ export interface StagedCapturePackage {
 export interface CapturePackageAssembler {
   capture(
     page: Extract<ActivePageInspection, { kind: "supported" }>,
+    onProgress?: (progress: CapturePackageProgress) => void,
+    signal?: AbortSignal,
   ): Promise<StagedCapturePackage>;
+}
+
+export interface CapturePackageProgress {
+  completedAssets: number;
+  totalAssets: number;
 }
 
 interface CapturePackageAssemblerDependencies {
@@ -114,7 +121,7 @@ export function createCapturePackageAssembler({
   producer,
 }: CapturePackageAssemblerDependencies): CapturePackageAssembler {
   return {
-    async capture(page) {
+    async capture(page, onProgress, signal) {
       const results = await callbackResult<
         chrome.scripting.InjectionResult<unknown>[]
       >((done) => {
@@ -128,6 +135,7 @@ export function createCapturePackageAssembler({
         );
       });
       const captured = results.find((result) => result.frameId === 0)?.result;
+      throwIfCaptureCancelled(signal);
       if (!isCapturedTopLevelDocument(captured)) {
         throw captureFailure("The active page could not be captured.");
       }
@@ -148,13 +156,19 @@ export function createCapturePackageAssembler({
       const assetParts: StagedCaptureAssetPart[] = [];
       let capturedAssetCount = 0;
       let capturedAssetBytes = 0;
-      for (const asset of captured.assets) {
+      onProgress?.({ completedAssets: 0, totalAssets: captured.assets.length });
+      for (const [index, asset] of captured.assets.entries()) {
+        throwIfCaptureCancelled(signal);
         if (asset.outcome.status === "unavailable") {
           assets.push({
             id: asset.id,
             sourceUrl: asset.sourceUrl,
             status: "unavailable",
             reason: asset.outcome.reason,
+          });
+          onProgress?.({
+            completedAssets: index + 1,
+            totalAssets: captured.assets.length,
           });
           continue;
         }
@@ -165,6 +179,10 @@ export function createCapturePackageAssembler({
             sourceUrl: asset.sourceUrl,
             status: "unavailable",
             reason: "binary_limit",
+          });
+          onProgress?.({
+            completedAssets: index + 1,
+            totalAssets: captured.assets.length,
           });
           continue;
         }
@@ -177,6 +195,10 @@ export function createCapturePackageAssembler({
             sourceUrl: asset.sourceUrl,
             status: "unavailable",
             reason: "aggregate_limit",
+          });
+          onProgress?.({
+            completedAssets: index + 1,
+            totalAssets: captured.assets.length,
           });
           continue;
         }
@@ -199,7 +221,12 @@ export function createCapturePackageAssembler({
         );
         capturedAssetCount += 1;
         capturedAssetBytes += bytes.byteLength;
+        onProgress?.({
+          completedAssets: index + 1,
+          totalAssets: captured.assets.length,
+        });
       }
+      throwIfCaptureCancelled(signal);
       const manifest: CapturePackageManifest = {
         captureId,
         capturedAt: now().toISOString(),
@@ -230,6 +257,12 @@ export function createCapturePackageAssembler({
       });
     },
   };
+}
+
+function throwIfCaptureCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) {
+    throw captureFailure("Capture cancelled.");
+  }
 }
 
 /**
