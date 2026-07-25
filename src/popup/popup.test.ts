@@ -82,7 +82,12 @@ describe("compact Browser Capture popup", () => {
       expect(getByText(root, "Home Reader")).toBeTruthy();
     });
     expect(root.textContent).not.toContain("Browser Capture sends only to");
-    fireEvent.click(getByRole(root, "button", { name: "Disconnect" }));
+    expect(root.querySelector(".status-dot")).toBeNull();
+    const disconnectButton = getByRole(root, "button", {
+      name: "Disconnect",
+    });
+    expect(disconnectButton.closest(".section-heading")).not.toBeNull();
+    fireEvent.click(disconnectButton);
     await vi.waitFor(() => {
       expect(disconnect).toHaveBeenCalledOnce();
       expect(getByText(root, "Not connected")).toBeTruthy();

@@ -72,7 +72,14 @@ export function mountPopup(
               <p class="eyebrow">Connection</p>
               <p class="connection-status" data-status>Not connected</p>
             </div>
-            <span class="status-dot" aria-hidden="true"></span>
+            <button
+              class="disconnect-action btn btn-ghost"
+              type="button"
+              data-disconnect
+              hidden
+            >
+              Disconnect
+            </button>
           </div>
           <p class="connection-detail" data-detail>
             Connect this browser before importing the current page.
@@ -84,14 +91,6 @@ export function mountPopup(
               data-cloud-connect
             >
               Connect to Increader Cloud
-            </button>
-            <button
-              class="secondary-action btn btn-ghost btn-sm btn-block"
-              type="button"
-              data-disconnect
-              hidden
-            >
-              Disconnect
             </button>
           </div>
         </div>

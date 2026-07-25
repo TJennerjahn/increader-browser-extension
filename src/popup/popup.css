@@ -294,27 +294,6 @@ h1 {
   line-height: 1.25;
 }
 
-.status-dot {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border: 2px solid oklch(var(--b1));
-  border-radius: 999px;
-  background: oklch(var(--bc) / 0.32);
-  box-shadow: 0 0 0 2px oklch(var(--bc) / 0.1);
-}
-
-.connection-card[data-state="connecting"] .status-dot {
-  background: oklch(var(--p));
-  box-shadow: 0 0 0 2px oklch(var(--p) / 0.16);
-  animation: status-pulse 1.6s ease-in-out infinite;
-}
-
-.connection-card[data-state="paired"] .status-dot {
-  background: oklch(var(--su));
-  box-shadow: 0 0 0 2px oklch(var(--su) / 0.16);
-}
-
 .connection-detail {
   min-height: 34px;
   margin: 1px 0 2px;
@@ -330,6 +309,19 @@ h1 {
 .connection-actions {
   display: grid;
   gap: 6px;
+}
+
+.connection-actions:not(:has(> :not([hidden]))) {
+  display: none;
+}
+
+.disconnect-action {
+  width: auto;
+  height: 26px;
+  min-height: 26px;
+  padding-right: 9px;
+  padding-left: 9px;
+  font-size: 11px;
 }
 
 .page-icon {
@@ -644,17 +636,6 @@ h1 {
 
   100% {
     transform: scale(1);
-  }
-}
-
-@keyframes status-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.45;
   }
 }
 
