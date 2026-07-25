@@ -1,5 +1,3 @@
-import { originPermissionPattern } from "../pairing/pairing";
-
 interface ExtensionRuntime {
   getURL?(path: string): string;
 }
@@ -13,7 +11,7 @@ export function runtimeOriginPermissionPattern(
     : originOrPattern;
   const exactPattern = originOrPattern.endsWith("/*")
     ? originOrPattern
-    : originPermissionPattern(origin);
+    : `${origin}/*`;
   if (!runtime.getURL?.("").startsWith("moz-extension://")) {
     return exactPattern;
   }

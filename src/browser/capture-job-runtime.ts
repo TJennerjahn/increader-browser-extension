@@ -163,17 +163,17 @@ export function createCaptureFailureNotifier(
     });
 }
 
-export function createOriginBoundAccessToken(pairing: {
+export function createOriginBoundAccessToken(authentication: {
   currentOrigin(): Promise<string | null>;
   accessToken(): Promise<string>;
 }): (origin: string) => Promise<string> {
   return async (origin) => {
-    if ((await pairing.currentOrigin()) !== origin) {
+    if ((await authentication.currentOrigin()) !== origin) {
       throw new Error(
-        "Reconnect to this Capture Package's Increader instance before Retry.",
+        "Sign in to this Capture Package's Increader instance before Retry.",
       );
     }
-    return pairing.accessToken();
+    return authentication.accessToken();
   };
 }
 

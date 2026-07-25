@@ -1,0 +1,163 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  createCloudAccountClient,
+  createSelfHostedAccountClient,
+} from "./auth-adapters";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("self-hosted account authentication", () => {
+  it("uses the normal login endpoint and the normal session cookie", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          expiresAt: "2026-07-26T12:00:00Z",
+          user: { email: "reader@example.com", id: "user-1" },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      ),
+    );
+    const getCookie = vi.fn().mockResolvedValue({
+      domain: "reader.example",
+      expirationDate: 1_800_000_000,
+      hostOnly: true,
+      httpOnly: true,
+      name: "increader_auth",
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+      session: false,
+      storeId: "0",
+      value: "normal-session-token",
+    });
+    vi.stubGlobal("browser", { cookies: { get: getCookie } });
+    const client = createSelfHostedAccountClient(
+      "https://reader.example",
+      fetcher,
+      {} as typeof chrome.cookies,
+    );
+
+    await expect(
+      client.signIn("reader@example.com", "correct horse"),
+    ).resolves.toBe("reader@example.com");
+    await expect(client.accessToken()).resolves.toBe("normal-session-token");
+    await expect(client.isSignedIn()).resolves.toBe(true);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://reader.example/api/auth/login",
+      {
+        body: JSON.stringify({
+          email: "reader@example.com",
+          password: "correct horse",
+        }),
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        redirect: "error",
+      },
+    );
+    expect(getCookie).toHaveBeenCalledWith({
+      name: "increader_auth",
+      url: "https://reader.example/",
+    });
+  });
+
+  it("reports the normal invalid-credentials response", async () => {
+    const client = createSelfHostedAccountClient(
+      "https://reader.example",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+      {} as typeof chrome.cookies,
+    );
+
+    await expect(
+      client.signIn("reader@example.com", "wrong"),
+    ).rejects.toThrow("Invalid email or password.");
+  });
+});
+
+describe("Increader Cloud account authentication", () => {
+  it("creates a normal Clerk sign-in and refreshes its normal session token", async () => {
+    const values: Record<string, unknown> = {};
+    const storage = {
+      get: (key: string) => Promise.resolve({ [key]: values[key] }),
+      remove: (key: string) => {
+        Reflect.deleteProperty(values, key);
+        return Promise.resolve();
+      },
+      set: (next: Record<string, unknown>) => {
+        Object.assign(values, next);
+        return Promise.resolve();
+      },
+    };
+    vi.stubGlobal("browser", { storage: { local: storage } });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-one"))
+      .mockResolvedValueOnce(
+        clerkResponse(
+          {
+            response: {
+              created_session_id: "sess_normal",
+              status: "complete",
+            },
+          },
+          "client-two",
+        ),
+      )
+      .mockResolvedValueOnce(
+        clerkResponse({ jwt: "normal-user-token" }, "client-three"),
+      )
+      .mockResolvedValueOnce(
+        clerkResponse({ jwt: "fresh-user-token" }, "client-four"),
+      )
+      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-five"));
+    const client = createCloudAccountClient(
+      fetcher,
+      {} as chrome.storage.StorageArea,
+    );
+
+    await expect(
+      client.signIn("reader@example.com", "correct horse"),
+    ).resolves.toBe("reader@example.com");
+    await expect(client.accessToken()).resolves.toBe("normal-user-token");
+    await expect(client.isSignedIn()).resolves.toBe(true);
+    await client.signOut();
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "https://clerk.increader.com/v1/client/sign_ins?_is_native=1",
+      expect.objectContaining({
+        body: new URLSearchParams({
+          identifier: "reader@example.com",
+          password: "correct horse",
+        }),
+        credentials: "omit",
+        method: "POST",
+      }),
+    );
+    const tokenRequest = fetcher.mock.calls[2]?.[1] as RequestInit;
+    expect(new Headers(tokenRequest.headers).get("Authorization")).toBe(
+      "Bearer client-two",
+    );
+    expect(values.browserCaptureCloudSession).toBeUndefined();
+  });
+});
+
+function clerkResponse(body: unknown, authorization: string): Response {
+  return new Response(JSON.stringify(body), {
+    headers: {
+      Authorization: authorization,
+      "Content-Type": "application/json",
+    },
+    status: 200,
+  });
+}

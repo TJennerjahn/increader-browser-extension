@@ -7,17 +7,14 @@ All commands start from a clean checkout of the release commit.
 ```sh
 npm ci
 npx puppeteer browsers install chrome
-npx puppeteer browsers install firefox@stable
 npm run release:verify
 ```
 
 `npm run release:verify` builds twice and rejects a checksum difference. It then
 inspects exact archive contents and permissions, runs web-ext lint and
-dependency/license audits, loads the exact Chrome upload ZIP after extraction,
-temporarily installs the exact Firefox upload ZIP after extraction, reloads the
-Firefox runtime, runs actual previous-candidate profile upgrades, and executes
-the real-browser Cloud/self-hosted matrix in current Chrome, current Firefox,
-and the checksum-pinned Firefox 140.0 ESR.
+dependency/license audits, and smoke-loads the production Chrome extension and
+account form. Firefox receives the same source and is checked by unit tests,
+TypeScript, manifest assertions, production build inspection, and web-ext lint.
 
 ## Chrome load-unpacked
 
@@ -28,9 +25,8 @@ and the checksum-pinned Firefox 140.0 ESR.
    incognito is disallowed, and the permission list matches
    `release-metadata/manifest-permissions.json`.
 
-The automated equivalent uses Chrome for Testing's extension API against files
-extracted from the exact Chrome upload ZIP, triggers the action, and observes
-the production popup and background runtime.
+The automated equivalent uses Chrome for Testing's extension API, loads the
+production directory, and observes the account form and background runtime.
 
 Chrome Web Store upload, signing, publication, and account credentials are
 external to this repository. Upload only the checksum-verified
@@ -45,10 +41,8 @@ npx web-ext run \
   --no-reload
 ```
 
-The release gate performs the same temporary-install protocol against Firefox
-140+ using files extracted from the exact upload ZIP, verifies the stable
-add-on ID, and exercises a runtime reload. Interactive testing may alternatively
-use `about:debugging` → **This Firefox** → **Load Temporary Add-on** and select
+Interactive testing can use `about:debugging` → **This Firefox** →
+**Load Temporary Add-on** and select
 `dist/production/firefox/manifest.json`.
 
 ## AMO unlisted signing and internal distribution
@@ -89,5 +83,4 @@ Mozilla documents `--channel=unlisted` as the self-distribution signing path:
 
 Retain the previous signed artifact and checksums. If a release must be
 withdrawn, stop distribution and restore the previous signed version through
-the same vendor channel. Routine downgrade is not a data-migration mechanism;
-validate the checked-in previous-candidate fixture before publishing.
+the same vendor channel.

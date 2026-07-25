@@ -66,7 +66,7 @@ try {
   await popup.goto(`chrome-extension://${extension.id}/popup.html`);
   await popup.waitForFunction(
     () =>
-      document.querySelector("[data-status]")?.textContent === "Not connected",
+      document.querySelector("[data-status]")?.textContent === "Signed out",
   );
   const body = await popup.$("body");
   if (body === null) throw new Error("Production popup body was unavailable");
@@ -92,7 +92,7 @@ try {
       <text x="94" y="300" font-family="Arial, sans-serif" font-size="54"
         font-weight="700" fill="#1e1b4b">Send the page you choose.</text>
       <text x="94" y="366" font-family="Arial, sans-serif" font-size="27"
-        fill="#475569">Pair once. Check the exact URL.</text>
+        fill="#475569">Sign in. Check the exact URL.</text>
       <text x="94" y="408" font-family="Arial, sans-serif" font-size="27"
         fill="#475569">Import only when you decide.</text>
       <text x="94" y="516" font-family="Arial, sans-serif" font-size="20"

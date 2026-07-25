@@ -2,13 +2,13 @@
   "manifest_version": 3,
   "name": "Increader Browser Capture",
   "version": "0.1.0",
-  "description": "Send the current page to your paired Increader instance.",
+  "description": "Sign in and send the current page to your Increader instance.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmRQx9LxnsPUQpGIsVoBJbqCk/Pe6HJi+rULpk7gmj5Y91DJUY+xpY+3QmZ3RPU3K6ZB/Nooo/2iBuIlAn2DvIBf3jA2OYXlQH2QQXFT6vPPTg68Iub8jJvzrKjZ6TDn3nAFw5IT1qKQjJoPd0kq2U5t3z1Lf44G4NLrqk0X+rMHf6NiFejt7fqgfQxf0dIGDMqlWkgq4p7SJqfDtRkrMNHhx7TmwB9uHFWrdipNV+SE95Ij/cpATs6cP8qf3GHSkPwe7dKjbyQGVBXamW9U1VUnpj2zuEjDMl7IW6Py3Gs6gdhutgC0cMTMySMwXwcil0A9AguxHj2Q1AWOaRwcRLQIDAQAB",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "identity",
+    "cookies",
     "notifications"
   ],
   "optional_host_permissions": [

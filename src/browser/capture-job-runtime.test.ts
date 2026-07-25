@@ -230,8 +230,8 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     expect(clicked).toHaveLength(0);
   });
 
-  it("never sends a token from a replacement Pairing to the staged origin", async () => {
-    const accessToken = vi.fn().mockResolvedValue("bca_wrong_origin");
+  it("never sends a token from a replacement authentication to the staged origin", async () => {
+    const accessToken = vi.fn().mockResolvedValue("session_wrong_origin");
     const tokenForOrigin = createOriginBoundAccessToken({
       accessToken,
       currentOrigin: () =>
@@ -241,7 +241,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     await expect(
       tokenForOrigin("https://original-reader.example"),
     ).rejects.toThrow(
-      "Reconnect to this Capture Package's Increader instance before Retry.",
+      "Sign in to this Capture Package's Increader instance before Retry.",
     );
     expect(accessToken).not.toHaveBeenCalled();
   });

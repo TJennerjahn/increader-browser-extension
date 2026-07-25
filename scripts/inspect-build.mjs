@@ -25,7 +25,7 @@ const expectedFiles = [
 ].sort();
 const expectedPermissions = [
   "activeTab",
-  "identity",
+  "cookies",
   "notifications",
   "scripting",
   "storage",

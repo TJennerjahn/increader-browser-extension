@@ -16,7 +16,7 @@ describe("Browser Capture Bookmark Lookup HTTP", () => {
     await expect(
       client.lookup(
         "https://reader.example",
-        "bca_short_lived",
+        "session_short_lived",
         "https://example.com/article?campaign=one&next=%2Ftwo",
       ),
     ).resolves.toEqual({
@@ -35,7 +35,7 @@ describe("Browser Capture Bookmark Lookup HTTP", () => {
         credentials: "omit",
         headers: {
           Accept: "application/json",
-          Authorization: "Bearer bca_short_lived",
+          Authorization: "Bearer session_short_lived",
           "Content-Type": "application/json",
         },
         method: "POST",
@@ -66,14 +66,14 @@ describe("Browser Capture Bookmark Lookup HTTP", () => {
     await expect(
       client.lookup(
         "https://reader.example",
-        "bca_access",
+        "session_access",
         "https://example.com/missing",
       ),
     ).resolves.toEqual({ exists: false });
     await expect(
       client.lookup(
         "https://reader.example",
-        "bca_access",
+        "session_access",
         "https://example.com/existing",
       ),
     ).resolves.toEqual({
@@ -84,7 +84,7 @@ describe("Browser Capture Bookmark Lookup HTTP", () => {
     await expect(
       client.lookup(
         "https://reader.example",
-        "bca_access",
+        "session_access",
         "https://example.com/invalid",
       ),
     ).rejects.toThrow("Could not check this page in Increader.");

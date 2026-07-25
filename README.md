@@ -4,19 +4,20 @@ The public Chrome and Firefox Browser Capture extension for
 [Increader](https://app.increader.com). One TypeScript/WebExtensions source tree
 produces Manifest V3 builds for both browsers.
 
-Browser Capture is an explicit import workflow. After Pairing, opening the
-compact utility reads only the active top-level page's title, fragment-free
-HTTP(S) URL, and document type. It sends only that URL to the paired Increader
-for an exact owned Bookmark Lookup. Pressing Import is the separate
-authorization that snapshots the live DOM and selected images, sends one
-bounded Capture Package only to that instance, and enters Increader's normal
-Bookmark Import Flow.
+Browser Capture uses an ordinary Increader account. The popup contains the same
+email-and-password login used by the normal client. It defaults to Increader
+Cloud; for self-hosted Increader, enter that instance's origin and the request
+is sent to its normal `/api/auth/login` endpoint.
 
-The current implementation includes destination discovery, explicit Browser
-Capture Pairing, active-page inspection, exact Bookmark Lookup, atomic live-DOM
-Capture Packages with selected images, and the durable Browser Capture Job
-lifecycle. It does not serialize or transfer DOM or asset content before
-Import.
+Once signed in, opening the popup reads the active top-level page's title,
+fragment-free HTTP(S) URL, and document type. It sends only that URL for an exact
+owned Bookmark Lookup. Pressing Import separately authorizes a snapshot of the
+live DOM and selected images. The resulting multipart Capture Package enters
+Increader's normal Bookmark Import Flow.
+
+The extension has no separate authorization scheme, approval page, installation
+identity, credential renewal protocol, or server-managed extension settings. A
+signed-in extension has the same account authority as the normal client.
 
 ## Browser support
 
@@ -36,78 +37,58 @@ npm ci
 npm run verify
 ```
 
-Useful individual commands:
+Useful commands:
 
-- `npm test` — behavior tests at the Pairing, protocol, popup, and manifest
-  seams.
+- `npm test` — behavior tests for authentication, capture, protocol, popup, and
+  manifest seams.
 - `npm run build:dev` — unminified Chrome and Firefox directories with source
   maps under `dist/development/`.
-- `npm run build` — isolated production directories and deterministic upload
-  ZIPs, reviewer source, SBOMs, checksums, notices, permission report,
-  provenance, and listing assets under `dist/production/`.
-- `npm run browser:test` — exact-artifact smoke loads plus the real Chrome and
-  Firefox self-hosted workflow and stress/fault suite.
-- `npm run browser:test:matrix` — the complete Cloud/self-hosted matrix,
-  including checksum-pinned Firefox 140.0 ESR and current Firefox.
-- `npm run upgrade:test` — genuine previous-candidate browser-profile upgrades
-  using exact 0.1.0 packages.
-- `npm run protocol:check` — verify mirror provenance and generated TypeScript.
+- `npm run build` — production directories, upload ZIPs, reviewer source,
+  SBOMs, checksums, notices, permission report, provenance, and listing assets.
+- `npm run protocol:check` — verify the canonical API mirror and generated
+  TypeScript.
 - `npm run inspect` — reject unexpected archive files or manifest drift.
-- `npm run web-ext:lint` — validate the exact Firefox production package.
+- `npm run web-ext:lint` — validate the Firefox production package.
 
-Load `dist/production/chrome/` as the exact Chrome unpacked candidate or
-`dist/production/firefox/manifest.json` as a temporary Firefox add-on. Neither
-production build requires an Increader source checkout.
+Load `dist/production/chrome/` as an unpacked Chrome extension or
+`dist/production/firefox/manifest.json` as a temporary Firefox add-on.
 
-## Destination discovery
+## Authentication
 
-The utility defaults to `https://app.increader.com`. Self-hosted configuration
-is under Connection settings. Network-accessible instances must use an exact
-HTTPS origin. HTTP is accepted only for loopback development (`localhost`,
-`127.0.0.1`, or `[::1]`). Credentials, paths, queries, and fragments are
-rejected.
+The popup defaults to `https://app.increader.com`. Self-hosted instances must
+use an exact HTTPS origin; HTTP is accepted only for loopback development.
+Credentials, paths, queries, and fragments are rejected.
 
-The extension asks for one optional runtime host grant for the exact candidate
-origin, reads only `/api/browser-capture/discovery`, and removes failed or
-replaced grants. It has no persistent publisher/CDN host access.
+The popup asks for an optional host grant for the chosen instance. Cloud login
+uses Clerk's browser Frontend API and the normal Increader Cloud account.
+Self-hosted login calls `/api/auth/login`, retains Increader's normal HttpOnly
+session cookie, and sends that session token as a normal bearer token from the
+extension background process. Sign out uses the account provider's normal
+logout operation.
 
-## Pairing
+The production Clerk instance must have Native API enabled so requests from
+packaged extension origins are accepted.
 
-Connect opens the selected instance's Account Identity approval page through
-the browser identity API. The page shows the exact destination, signed-in
-account, installation, and capture-only authority. The extension generates
-state and an S256 PKCE challenge, exchanges the returned single-use code
-without sending web cookies, and stores only the rotating renewal credential
-in `storage.local`. The ten-minute access token remains in extension memory.
-
-Renewal occurs only when a Browser Capture operation needs an access token.
-Each success replaces the prior renewal credential and extends its 90-day
-inactivity lifetime. Browser restart and extension update preserve the
-installation UUID and pairing; browser sync never receives either. Disconnect
-revokes the server pairing, clears local credentials, and removes the instance
-host grant. Pairing another destination replaces the existing pairing.
+The chosen origin and account metadata are stored in `storage.local`. Cloud
+login also stores Clerk's normal client authorization and session identifier
+there so it can request short-lived access tokens. Passwords and issued access
+tokens are never stored.
 
 ## Protocol and architecture
 
-Increader owns the canonical additive, unversioned OpenAPI contract. This
-repository checks in a public mirror, source provenance, generated wire types,
-and compatible/incompatible fixtures under [`protocol/`](protocol/README.md).
-No build fetches the other repository or a moving schema.
+Increader owns the canonical OpenAPI contract. This repository checks in an
+exact mirror, source provenance, generated wire types, and representative
+fixtures under [`protocol/`](protocol/README.md).
 
-The deep Pairing interface owns destination discovery and credential
-lifecycle. The active-page interface owns the minimal top-frame inspection. The
+The Authentication interface owns the current account and normal access token.
+The active-page interface owns minimal top-frame inspection. The
 background-owned Capture Job interface owns capture, extension-origin IndexedDB
 staging, transfer, explicit same-package Retry, and Discard. Closing the popup
-does not cancel it. Interrupted transfers remain visible as action-required
-failures and never retry automatically; completed and discarded jobs promptly
-remove staged page bytes. The popup depends on that interface rather than
-browser internals. Increader remains the sole owner of Article Extraction and
-normal Bookmark behavior.
+does not cancel an active job. Increader remains the sole owner of Article
+Extraction and normal Bookmark behavior.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 [privacy](docs/privacy.md), and the [permission rationale](docs/permissions.md).
-Store/reviewer copy is in [listing.md](docs/listing.md), and reproducible
-distribution steps are in [distribution.md](docs/distribution.md).
 
 ## License
 

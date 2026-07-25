@@ -1,8 +1,7 @@
-import type { Pairing } from "../pairing/pairing";
-import type {
-  PairingClient,
-  PairingOperationState,
-} from "../browser/pairing-runtime";
+import {
+  CLOUD_INSTANCE_ORIGIN,
+  type Authentication,
+} from "../auth/authentication";
 import type {
   ActivePageInspection,
   ActivePageInspector,
@@ -10,9 +9,7 @@ import type {
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
 import type { CaptureJobClient } from "../browser/capture-job-runtime";
 import type { CaptureJobState } from "../capture-job/capture-job";
-import { normalizeInstanceOrigin } from "../pairing/instance-origin";
-
-export const CLOUD_INSTANCE_ORIGIN = "https://app.increader.com";
+import { normalizeInstanceOrigin } from "../auth/instance-origin";
 
 export interface ConnectionOriginPreference {
   load(): Promise<string | null>;
@@ -29,7 +26,7 @@ export interface PopupPageDependencies {
 
 export function mountPopup(
   root: HTMLElement,
-  pairing: Pairing & Partial<Pick<PairingClient, "observe" | "operation">>,
+  authentication: Authentication,
   pageDependencies?: PopupPageDependencies,
   connectionOriginPreference?: ConnectionOriginPreference,
 ): () => void {
@@ -93,35 +90,23 @@ export function mountPopup(
             </span>
             <div class="section-copy">
               <p class="eyebrow">Connection</p>
-              <p class="connection-status" data-status>Not connected</p>
+              <p class="connection-status" data-status>Signed out</p>
             </div>
             <button
               class="disconnect-action btn btn-ghost"
               type="button"
-              data-disconnect
+              data-sign-out
               hidden
             >
-              Disconnect
+              Sign out
             </button>
           </div>
           <p class="connection-detail" data-detail>
-            Connect this browser before importing the current page.
+            Sign in before importing the current page.
           </p>
-          <div class="connection-actions">
-            <button
-              class="primary-action btn btn-primary btn-block"
-              type="button"
-              data-cloud-connect
-            >
-              Connect to Increader
-            </button>
-          </div>
-        </div>
-      </section>
-
         <form
           class="settings-form card card-surface"
-          data-self-hosted-form
+          data-login-form
         >
           <label class="label" for="self-hosted-origin">
             <span class="label-text">Increader instance origin</span>
@@ -137,13 +122,39 @@ export function mountPopup(
             value="https://app.increader.com"
             required
           />
+          <label class="label" for="login-email">
+            <span class="label-text">Email</span>
+          </label>
+          <input
+            class="input input-bordered"
+            id="login-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+            required
+          />
+          <label class="label" for="login-password">
+            <span class="label-text">Password</span>
+          </label>
+          <input
+            class="input input-bordered"
+            id="login-password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
           <button
-            class="secondary-action btn btn-outline btn-block"
+            class="primary-action btn btn-primary btn-block"
             type="submit"
+            data-sign-in
           >
-            Save connection
+            Sign in
           </button>
         </form>
+        </div>
+      </section>
       </section>
 
       <section class="popup-view main-view" data-main-view hidden>
@@ -241,27 +252,32 @@ export function mountPopup(
     root,
     "[data-settings-icon]",
   ) as SVGElement;
-  const cloudButton = requiredElement(
+  const loginForm = requiredElement(
     root,
-    "[data-cloud-connect]",
-  ) as HTMLButtonElement;
-  const selfHostedForm = requiredElement(
-    root,
-    "[data-self-hosted-form]",
+    "[data-login-form]",
   ) as HTMLFormElement;
   const originInput = requiredElement(
     root,
     "#self-hosted-origin",
   ) as HTMLInputElement;
+  const emailInput = requiredElement(root, "#login-email") as HTMLInputElement;
+  const passwordInput = requiredElement(
+    root,
+    "#login-password",
+  ) as HTMLInputElement;
+  const signInButton = requiredElement(
+    root,
+    "[data-sign-in]",
+  ) as HTMLButtonElement;
   const connectionCard = requiredElement(
     root,
     "[data-connection-card]",
   ) as HTMLElement;
   const status = requiredElement(root, "[data-status]") as HTMLElement;
   const detail = requiredElement(root, "[data-detail]") as HTMLElement;
-  const disconnectButton = requiredElement(
+  const signOutButton = requiredElement(
     root,
-    "[data-disconnect]",
+    "[data-sign-out]",
   ) as HTMLButtonElement;
   const pageCard = requiredElement(root, "[data-page-card]") as HTMLElement;
   const pageFavicon = requiredElement(
@@ -299,7 +315,7 @@ export function mountPopup(
   let disposed = false;
   let configuredOrigin = CLOUD_INSTANCE_ORIGIN;
   let connectionInteractionGeneration = 0;
-  let pairedDestination: {
+  let authenticatedDestination: {
     displayName: string;
     origin: string;
   } | null = null;
@@ -320,7 +336,7 @@ export function mountPopup(
     backIcon.removeAttribute("hidden");
     settingsIcon.setAttribute("hidden", "");
     viewToggle.ariaLabel = "Back to import";
-    viewToggle.hidden = pairedDestination === null;
+    viewToggle.hidden = authenticatedDestination === null;
   };
 
   const showMainView = (): void => {
@@ -354,7 +370,7 @@ export function mountPopup(
 
   const showDisconnected = (message?: string): void => {
     connectionCard.dataset.state = "disconnected";
-    pairedDestination = null;
+    authenticatedDestination = null;
     currentPage = null;
     existingBookmarkId = null;
     readerOrigin = null;
@@ -362,61 +378,30 @@ export function mountPopup(
     importActive = false;
     pageCard.hidden = true;
     renderConfiguredOrigin();
-    status.textContent = "Not connected";
+    status.textContent = "Signed out";
     detail.textContent =
-      message ?? "Connect this browser before importing the current page.";
-    cloudButton.hidden = false;
-    cloudButton.disabled = false;
-    disconnectButton.hidden = true;
+      message ?? "Sign in before importing the current page.";
+    signInButton.disabled = false;
+    signOutButton.hidden = true;
+    loginForm.hidden = false;
     showSettingsView();
   };
 
-  const showPaired = (paired: {
+  const showAuthenticated = (destination: {
     displayName: string;
     origin: string;
   }): void => {
-    connectionCard.dataset.state = "paired";
-    pairedDestination = paired;
+    connectionCard.dataset.state = "authenticated";
+    authenticatedDestination = destination;
     renderConfiguredOrigin();
-    const configuredPairing = paired.origin === configuredOrigin;
-    status.textContent = "Paired";
-    detail.textContent = configuredPairing
-      ? ""
-      : `Currently paired with ${paired.displayName}. Connect to replace it.`;
-    cloudButton.hidden = configuredPairing;
-    cloudButton.disabled = false;
-    disconnectButton.hidden = false;
+    configuredOrigin = destination.origin;
+    status.textContent = "Signed in";
+    detail.textContent = destination.displayName;
+    signInButton.disabled = false;
+    signOutButton.hidden = false;
+    loginForm.hidden = true;
     if (pageDependencies !== undefined) {
       void refreshPage();
-    }
-  };
-
-  const renderPairingOperation = (operation: PairingOperationState): void => {
-    if (operation.phase === "waiting-permission") {
-      connectionCard.dataset.state = "connecting";
-      status.textContent = "Connecting…";
-      detail.textContent =
-        "Allow access to this Increader instance in the browser prompt.";
-      cloudButton.disabled = true;
-      disconnectButton.hidden = true;
-      return;
-    }
-    if (operation.phase === "connecting") {
-      connectionCard.dataset.state = "connecting";
-      status.textContent = "Connecting…";
-      detail.textContent = "Approve Browser Capture in the Increader window.";
-      cloudButton.disabled = true;
-      disconnectButton.hidden = true;
-      return;
-    }
-    if (operation.phase === "failed") {
-      if (pairedDestination === null) {
-        showDisconnected(operation.message);
-      } else {
-        showPaired(pairedDestination);
-        status.textContent = "Could not connect";
-        detail.textContent = operation.message;
-      }
     }
   };
 
@@ -427,7 +412,7 @@ export function mountPopup(
     if (
       isDisposed() ||
       generation !== pageGeneration ||
-      pairedDestination === null
+      authenticatedDestination === null
     ) {
       return;
     }
@@ -454,9 +439,9 @@ export function mountPopup(
     pageDetail.textContent = "";
     importButton.disabled = true;
     try {
-      const accessToken = await pairing.accessToken();
+      const accessToken = await authentication.accessToken();
       const result = await pageDependencies?.lookup.lookup(
-        pairedDestination.origin,
+        authenticatedDestination.origin,
         accessToken,
         inspected.sourceUrl,
       );
@@ -466,7 +451,7 @@ export function mountPopup(
       importButton.disabled = false;
       if (result?.exists === true && result.bookmarkId !== undefined) {
         existingBookmarkId = result.bookmarkId;
-        readerOrigin = pairedDestination.origin;
+        readerOrigin = authenticatedDestination.origin;
         pageStatus.textContent = "Already in Increader";
         pageDetail.textContent = result.title ?? "";
         openReaderButton.hidden = false;
@@ -482,7 +467,7 @@ export function mountPopup(
       pageDetail.textContent =
         error instanceof Error
           ? error.message
-          : "Reconnect this browser and try again.";
+          : "Sign in again and try once more.";
       importButton.disabled = true;
       renderJobState(currentJobState);
     }
@@ -491,7 +476,7 @@ export function mountPopup(
   async function refreshPage(): Promise<void> {
     if (
       pageDependencies === undefined ||
-      pairedDestination === null ||
+      authenticatedDestination === null ||
       importActive
     ) {
       return;
@@ -520,41 +505,46 @@ export function mountPopup(
     await showInspection(inspected, generation);
   }
 
-  const connect = async (origin: string): Promise<void> => {
+  const signIn = async (
+    origin: string,
+    email: string,
+    password: string,
+  ): Promise<void> => {
     connectionCard.dataset.state = "connecting";
-    cloudButton.disabled = true;
-    status.textContent = "Connecting…";
-    detail.textContent = "Approve Browser Capture in the Increader window.";
+    signInButton.disabled = true;
+    status.textContent = "Signing in…";
+    detail.textContent = "Checking your Increader account.";
     try {
-      const result = await pairing.connect(origin);
+      const result = await authentication.signIn(
+        origin,
+        email,
+        password,
+      );
       if (isDisposed()) return;
       configuredOrigin = result.origin;
       void connectionOriginPreference?.save(result.origin).catch(() => undefined);
-      showPaired(result);
+      passwordInput.value = "";
+      showAuthenticated(result);
       showMainView();
     } catch (error) {
       if (disposed) return;
       const message =
         error instanceof Error
           ? error.message
-          : "Could not connect to a compatible Increader instance.";
-      if (pairedDestination === null) {
+          : "Increader could not sign you in.";
+      if (authenticatedDestination === null) {
         showDisconnected(message);
       } else {
-        showPaired(pairedDestination);
-        status.textContent = "Could not connect";
+        showAuthenticated(authenticatedDestination);
+        status.textContent = "Could not sign in";
         detail.textContent = message;
       }
     }
   };
 
-  const onCloudConnect = (): void => {
-    connectionInteractionGeneration += 1;
-    void connect(configuredOrigin);
-  };
-  const onSelfHostedSubmit = (event: SubmitEvent): void => {
+  const onLoginSubmit = (event: SubmitEvent): void => {
     event.preventDefault();
-    const interactionGeneration = ++connectionInteractionGeneration;
+    connectionInteractionGeneration += 1;
     let normalized: string;
     try {
       normalized = normalizeInstanceOrigin(originInput.value);
@@ -566,47 +556,25 @@ export function mountPopup(
           : "Enter a valid Increader instance origin.";
       return;
     }
-    void (async () => {
-      try {
-        await connectionOriginPreference?.save(normalized);
-        if (
-          isDisposed() ||
-          interactionGeneration !== connectionInteractionGeneration
-        ) {
-          return;
-        }
-        configuredOrigin = normalized;
-        if (pairedDestination === null) {
-          showDisconnected(
-            "Connection updated. Choose Connect to pair this browser.",
-          );
-        } else {
-          showPaired(pairedDestination);
-        }
-      } catch {
-        if (isDisposed()) return;
-        status.textContent = "Could not save connection";
-        detail.textContent = "Try saving the Increader instance again.";
-      }
-    })();
+    configuredOrigin = normalized;
+    void signIn(normalized, emailInput.value, passwordInput.value);
   };
-  const onDisconnect = (): void => {
+  const onSignOut = (): void => {
     connectionInteractionGeneration += 1;
     connectionCard.dataset.state = "connecting";
-    disconnectButton.disabled = true;
-    status.textContent = "Disconnecting…";
-    void pairing
-      .disconnect()
+    signOutButton.disabled = true;
+    status.textContent = "Signing out…";
+    void authentication
+      .signOut()
       .then(() => {
         if (!disposed) showDisconnected();
       })
       .catch(() => {
         if (isDisposed()) return;
-        connectionCard.dataset.state = "paired";
-        status.textContent = "Could not disconnect";
-        detail.textContent =
-          "Increader could not revoke this installation. Try again.";
-        disconnectButton.disabled = false;
+        connectionCard.dataset.state = "authenticated";
+        status.textContent = "Could not sign out";
+        detail.textContent = "Try signing out again.";
+        signOutButton.disabled = false;
       });
   };
   const onViewToggle = (): void => {
@@ -620,13 +588,13 @@ export function mountPopup(
     if (
       pageDependencies === undefined ||
       currentPage === null ||
-      pairedDestination === null ||
+      authenticatedDestination === null ||
       importActive
     ) {
       return;
     }
     const expectedPage = currentPage;
-    const destinationOrigin = pairedDestination.origin;
+    const destinationOrigin = authenticatedDestination.origin;
     importButton.disabled = true;
     void pageDependencies.activePage
       .inspect()
@@ -815,24 +783,22 @@ export function mountPopup(
     }
   }
 
-  cloudButton.addEventListener("click", onCloudConnect);
   viewToggle.addEventListener("click", onViewToggle);
   pageFavicon.addEventListener("error", showFaviconFallback);
-  selfHostedForm.addEventListener("submit", onSelfHostedSubmit);
-  disconnectButton.addEventListener("click", onDisconnect);
+  loginForm.addEventListener("submit", onLoginSubmit);
+  signOutButton.addEventListener("click", onSignOut);
   importButton.addEventListener("click", onImport);
   openReaderButton.addEventListener("click", onOpenReader);
   cancelButton.addEventListener("click", onCancel);
   retryButton.addEventListener("click", onRetry);
   discardButton.addEventListener("click", onDiscard);
   const stopObserving = pageDependencies?.activePage.observe(() => {
-    if (pairedDestination !== null && !importActive) {
+    if (authenticatedDestination !== null && !importActive) {
       void refreshPage();
     }
   });
   const stopObservingJob =
     pageDependencies?.captureJob?.observe(renderJobState);
-  const stopObservingPairing = pairing.observe?.(renderPairingOperation);
   void pageDependencies?.captureJob
     ?.current()
     .then((state) => {
@@ -842,7 +808,7 @@ export function mountPopup(
 
   const initialConnectionGeneration = connectionInteractionGeneration;
   const initializeConnection = Promise.all([
-    pairing.current(),
+    authentication.current(),
     connectionOriginPreference?.load().catch(() => null) ??
       Promise.resolve(null),
   ])
@@ -862,30 +828,23 @@ export function mountPopup(
       if (current === null) {
         showDisconnected();
       } else {
-        showPaired(current);
+        emailInput.value = current.email;
+        showAuthenticated(current);
         showMainView();
       }
     })
     .catch(() => undefined);
-  void initializeConnection.then(() =>
-    pairing
-      .operation?.()
-      .then((operation) => {
-        if (!disposed) renderPairingOperation(operation);
-      })
-      .catch(() => undefined),
-  );
+  void initializeConnection;
 
   return () => {
     disposed = true;
     if (retryRevealTimeout !== null) {
       globalThis.clearTimeout(retryRevealTimeout);
     }
-    cloudButton.removeEventListener("click", onCloudConnect);
     viewToggle.removeEventListener("click", onViewToggle);
     pageFavicon.removeEventListener("error", showFaviconFallback);
-    selfHostedForm.removeEventListener("submit", onSelfHostedSubmit);
-    disconnectButton.removeEventListener("click", onDisconnect);
+    loginForm.removeEventListener("submit", onLoginSubmit);
+    signOutButton.removeEventListener("click", onSignOut);
     importButton.removeEventListener("click", onImport);
     openReaderButton.removeEventListener("click", onOpenReader);
     cancelButton.removeEventListener("click", onCancel);
@@ -893,7 +852,6 @@ export function mountPopup(
     discardButton.removeEventListener("click", onDiscard);
     stopObserving?.();
     stopObservingJob?.();
-    stopObservingPairing?.();
   };
 }
 

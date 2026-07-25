@@ -234,7 +234,7 @@ async function buildPermissionReport() {
     artifactVersion: version,
     expectedRequired: [
       "activeTab",
-      "identity",
+      "cookies",
       "notifications",
       "scripting",
       "storage",

@@ -6,22 +6,21 @@ Increader Browser Capture
 
 ## Summary
 
-Send the page you choose to your paired Increader instance for focused reading.
+Sign in and send the page you choose to Increader for focused reading.
 
 ## Description
 
 Increader Browser Capture is a compact, user-triggered utility for saving the
 currently open HTML page to Increader.
 
-Connect the extension to Increader Cloud or one self-hosted Increader instance.
+Sign in to Increader Cloud or one self-hosted Increader instance.
 Open the utility to check whether the exact current URL is already in your
 library. Choose Import to capture the rendered top-level page and selected
 images, then continue in Increader's normal Reader Mode.
 
 Nothing is captured merely because a page is open. Browser Capture has no
-analytics, telemetry, advertising, background browsing, cookie access, or
-publisher-wide host permission. Captured content goes only to the exact
-Increader instance you paired.
+analytics, telemetry, advertising, background browsing, or publisher-wide host
+permission. Captured content goes only to the selected Increader instance.
 
 Chrome and Firefox use the same Browser Capture behavior. Firefox 140 or newer
 is required. PDFs, local files, browser-protected pages, private/incognito
@@ -44,11 +43,12 @@ windows, mobile browsers, and Safari are not supported in this release.
 ## Privacy and data-use answers
 
 - Single purpose: user-authorized capture to Increader.
-- Authentication information: one installation-specific rotating Browser
-  Capture credential is stored locally and never synchronized.
-- Website content: read only after explicit Import; sent only to the paired
+- Authentication information: normal Increader account sessions are used.
+  Passwords and issued access tokens are not stored; Clerk's client
+  authorization and session identifier stay in local extension storage.
+- Website content: read only after explicit Import; sent only to the selected
   Increader instance.
-- Browsing activity: the exact active URL is checked while the paired utility
+- Browsing activity: the exact active URL is checked while the signed-in utility
   is open; history is not collected.
 - Personal communications, financial information, health information,
   location, web history, analytics, and advertising data: not collected.

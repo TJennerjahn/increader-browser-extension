@@ -5,7 +5,7 @@ import {
 import { createActivePageInspector } from "../browser/active-page";
 import { createBookmarkLookupHttpClient } from "../protocol/bookmark-lookup-http";
 import { createCaptureJobClient } from "../browser/capture-job-runtime";
-import { createPairingClient } from "../browser/pairing-runtime";
+import { createAuthenticationClient } from "../browser/auth-runtime";
 import { holdBackgroundForPopup } from "../browser/popup-lifetime";
 import { mountPopup } from "./popup";
 
@@ -14,12 +14,12 @@ if (root === null) {
   throw new Error("Popup root is missing");
 }
 
-const pairing = createPairingClient();
+const authentication = createAuthenticationClient();
 const releaseBackground = holdBackgroundForPopup();
 
 const unmount = mountPopup(
   root,
-  pairing,
+  authentication,
   {
     activePage: createActivePageInspector(),
     captureJob: createCaptureJobClient(),

@@ -7,7 +7,7 @@ const requiredPermissions = [
   "activeTab",
   "scripting",
   "storage",
-  "identity",
+  "cookies",
   "notifications",
 ];
 const optionalOrigins = [

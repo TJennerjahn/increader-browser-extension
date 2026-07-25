@@ -2,12 +2,12 @@
   "manifest_version": 3,
   "name": "Increader Browser Capture",
   "version": "0.1.0",
-  "description": "Send the current page to your paired Increader instance.",
+  "description": "Sign in and send the current page to your Increader instance.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "identity",
+    "cookies",
     "notifications"
   ],
   "optional_host_permissions": [

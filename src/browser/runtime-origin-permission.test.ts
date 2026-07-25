@@ -19,7 +19,7 @@ describe("runtime origin permission patterns", () => {
     ).toBe("http://127.0.0.1/*");
   });
 
-  it("also adapts the exact pattern passed through the Pairing interface", () => {
+  it("also adapts an exact pattern passed by a caller", () => {
     expect(
       runtimeOriginPermissionPattern("http://127.0.0.1:5289/*", {
         getURL: () => "moz-extension://extension-id/",
