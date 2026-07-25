@@ -36,7 +36,8 @@ paths:
       description: |
         Uses the instance's existing Account Identity context to display and
         record explicit User approval. The Browser Extension receives only a
-        five-minute, single-use authorization code.
+        five-minute, single-use authorization code. The requested instance
+        origin must equal the receiving server's canonical request origin.
       security:
         - accountIdentity: []
       requestBody:
@@ -56,6 +57,8 @@ paths:
           description: Invalid pairing request
         "401":
           description: Account Identity authentication is required
+        "503":
+          description: Browser Capture Pairing is unavailable
   /api/browser-capture/pairing/exchange:
     post:
       operationId: exchangeBrowserCapturePairingCode

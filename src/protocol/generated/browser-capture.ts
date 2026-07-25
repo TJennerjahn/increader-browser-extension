@@ -39,7 +39,8 @@ export interface paths {
          * Approve one Browser Extension Installation
          * @description Uses the instance's existing Account Identity context to display and
          *     record explicit User approval. The Browser Extension receives only a
-         *     five-minute, single-use authorization code.
+         *     five-minute, single-use authorization code. The requested instance
+         *     origin must equal the receiving server's canonical request origin.
          */
         post: operations["approveBrowserCapturePairing"];
         delete?: never;
@@ -321,6 +322,13 @@ export interface operations {
             };
             /** @description Account Identity authentication is required */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Browser Capture Pairing is unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
