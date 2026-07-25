@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Install pinned real-browser engines and system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb xdotool
+          npx puppeteer browsers install chrome
+          npx puppeteer browsers install firefox@stable
+      - name: Lint, test, audit, verify protocol, and smoke exact packages
+        run: xvfb-run -a npm run verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-extension-packages
+          path: |
+            dist/production/chrome/
+            dist/production/increader-browser-extension-*-chrome-upload.zip
+            dist/production/increader-browser-extension-*-firefox-upload.zip
+            dist/production/increader-browser-extension-*-firefox-reviewer-source.zip
+            dist/production/checksums.sha256
+            dist/production/listing/
+            dist/production/release-metadata/
+          if-no-files-found: error

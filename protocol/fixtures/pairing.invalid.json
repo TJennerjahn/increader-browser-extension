@@ -1,0 +1,11 @@
+{
+  "approvalRequest": {
+    "instanceOrigin": "https://reader.example",
+    "installationId": "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+    "installationName": "Unknown extension",
+    "callbackUri": "https://evil.example/callback",
+    "state": "short",
+    "codeChallenge": "plain-verifier",
+    "codeChallengeMethod": "plain"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "manifest": {
+    "captureId": "019c0000-0000-7000-8000-000000000002",
+    "capturedAt": "2026-07-25T12:34:56Z",
+    "sourceUrl": "https://example.com/article-with-images",
+    "baseUrl": "https://example.com/article-with-images",
+    "title": "Observed image article",
+    "document": {
+      "bytes": 200,
+      "sha256": "91405e3ac5d0500aa7b636c784e56c86cfb66e5451dcaafc7073f68e278c9420"
+    },
+    "producer": {
+      "extensionVersion": "0.1.0",
+      "browser": "Firefox"
+    },
+    "assets": [
+      {
+        "id": "asset-0001",
+        "sourceUrl": "https://cdn.example/diagram.png",
+        "status": "captured",
+        "mediaType": "image/png",
+        "bytes": 12,
+        "sha256": "1b56b50ac4e976f488f128cabdcdffb2fc9331d6974bb9968131a415d14ade24"
+      },
+      {
+        "id": "asset-0002",
+        "sourceUrl": "https://cdn.example/unavailable.svg",
+        "status": "unavailable",
+        "reason": "unsupported_type"
+      }
+    ]
+  },
+  "documentHtml": "<!DOCTYPE html><html><body><article><img src=\"increader:browser-capture-asset/asset-0001\" alt=\"Diagram\"><img src=\"increader:browser-capture-asset/asset-0002\" alt=\"Unavailable\"></article></body></html>",
+  "assetParts": {
+    "asset-0001": {
+      "mediaType": "image/png",
+      "base64": "iVBORw0KGgoAAAAA"
+    }
+  }
+}
