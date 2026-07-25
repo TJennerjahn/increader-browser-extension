@@ -32,6 +32,9 @@ export function createCapturePackageHttpClient(
           type: "text/html;charset=utf-8",
         }),
       );
+      for (const asset of staged.assetParts) {
+        body.append(asset.id, asset.data);
+      }
       const response = await fetcher(
         new URL("/api/browser-capture/captures", `${origin}/`).toString(),
         {

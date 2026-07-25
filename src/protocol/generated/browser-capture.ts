@@ -146,9 +146,10 @@ export interface paths {
         put?: never;
         /**
          * Import one immutable Capture Package
-         * @description Accepts one atomic text-only Capture Package from the calling Pairing.
-         *     The Capture Source URL remains Bookmark identity while canonical and
-         *     base URLs are metadata/resolution hints. Capture ID idempotency is
+         * @description Accepts one atomic Capture Package from the calling Pairing. Captured
+         *     binary asset parts use their Capture Asset ID as the multipart field
+         *     name. The Capture Source URL remains Bookmark identity while canonical
+         *     and base URLs are metadata/resolution hints. Capture ID idempotency is
          *     scoped to the paired User and logical package fingerprint.
          */
         post: operations["importBrowserCapturePackage"];
@@ -301,10 +302,43 @@ export interface components {
             language?: string;
             document: components["schemas"]["BrowserCaptureDocumentDigest"];
             producer: components["schemas"]["BrowserCaptureProducer"];
-            /** @description Text-only slice supplies no captured image binaries. */
-            assets: unknown[];
+            /**
+             * @description Ordered by the first corresponding opaque marker in the document.
+             *     Repeated markers may reference one record. Every record must be
+             *     referenced and captured records require one same-ID binary part.
+             */
+            assets: components["schemas"]["BrowserCaptureAsset"][];
         } & {
             [key: string]: unknown;
+        };
+        BrowserCaptureAsset: components["schemas"]["BrowserCaptureCapturedAsset"] | components["schemas"]["BrowserCaptureUnavailableAsset"];
+        BrowserCaptureCapturedAsset: {
+            id: string;
+            /**
+             * Format: uri
+             * @description Resolved selected image provenance. Captured data images use the
+             *     bounded non-replayable value `data:`.
+             */
+            sourceUrl: string;
+            /** @enum {string} */
+            status: "captured";
+            /** @enum {string} */
+            mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/avif";
+            bytes: number;
+            sha256: string;
+        };
+        BrowserCaptureUnavailableAsset: {
+            id: string;
+            /**
+             * Format: uri
+             * @description Resolved selected image provenance. Non-replayable data images use
+             *     `data:` and blob images retain their bounded blob URL.
+             */
+            sourceUrl: string;
+            /** @enum {string} */
+            status: "unavailable";
+            /** @enum {string} */
+            reason: "acquisition_failed" | "timeout" | "unsupported_type" | "asset_too_large" | "binary_limit" | "aggregate_limit";
         };
         BrowserCaptureDocumentDigest: {
             bytes: number;
@@ -604,6 +638,8 @@ export interface operations {
                      * @description UTF-8 inert top-level live DOM snapshot.
                      */
                     document: string;
+                } & {
+                    [key: string]: string;
                 };
             };
         };

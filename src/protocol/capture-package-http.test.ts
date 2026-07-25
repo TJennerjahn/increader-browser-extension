@@ -7,59 +7,58 @@ describe("Capture Package multipart transfer", () => {
   it.each([
     [201, true],
     [200, false],
-  ])(
-    "maps HTTP %s to the normal Bookmark outcome",
-    async (status, created) => {
-      const fetcher = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            id: 42,
-            url: "https://example.com/article",
-            title: "Captured article",
-          }),
-          {
-            status,
-            headers: {
-              "Content-Type": "application/json",
-              Location: "/api/bookmarks/42",
-            },
+  ])("maps HTTP %s to the normal Bookmark outcome", async (status, created) => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 42,
+          url: "https://example.com/article",
+          title: "Captured article",
+        }),
+        {
+          status,
+          headers: {
+            "Content-Type": "application/json",
+            Location: "/api/bookmarks/42",
           },
-        ),
-      );
-      const client = createCapturePackageHttpClient(fetcher);
-      const staged = packageFixture();
+        },
+      ),
+    );
+    const client = createCapturePackageHttpClient(fetcher);
+    const staged = packageFixture();
 
-      await expect(
-        client.transfer("https://reader.example", "bca_memory", staged),
-      ).resolves.toEqual({
-        bookmarkId: 42,
-        created,
-        title: "Captured article",
-      });
+    await expect(
+      client.transfer("https://reader.example", "bca_memory", staged),
+    ).resolves.toEqual({
+      bookmarkId: 42,
+      created,
+      title: "Captured article",
+    });
 
-      const [url, request] = fetcher.mock.calls[0] as [
-        string,
-        RequestInit,
-      ];
-      expect(url).toBe(
-        "https://reader.example/api/browser-capture/captures",
-      );
-      expect(request.credentials).toBe("omit");
-      expect(request.headers).toEqual({
-        Authorization: "Bearer bca_memory",
-      });
-      expect(request.body).toBeInstanceOf(FormData);
-      const body = request.body as FormData;
-      expect(body.has("manifest")).toBe(true);
-      expect(body.has("document")).toBe(true);
-      expect(
-        JSON.parse(await (body.get("manifest") as Blob).text()),
-      ).toEqual(staged.manifest);
-      expect(await (body.get("document") as Blob).text()).toBe(
-        staged.documentHtml,
-      );
-    },
-  );
+    const [url, request] = fetcher.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://reader.example/api/browser-capture/captures");
+    expect(request.credentials).toBe("omit");
+    expect(request.headers).toEqual({
+      Authorization: "Bearer bca_memory",
+    });
+    expect(request.body).toBeInstanceOf(FormData);
+    const body = request.body as FormData;
+    expect(body.has("manifest")).toBe(true);
+    expect(body.has("document")).toBe(true);
+    expect(body.has("asset-0001")).toBe(true);
+    expect(JSON.parse(await (body.get("manifest") as Blob).text())).toEqual(
+      staged.manifest,
+    );
+    expect(await (body.get("document") as Blob).text()).toBe(
+      staged.documentHtml,
+    );
+    const asset = body.get("asset-0001");
+    expect(asset).toBeInstanceOf(Blob);
+    expect((asset as Blob).type).toBe("image/png");
+    expect(
+      Array.from(new Uint8Array(await (asset as Blob).arrayBuffer())),
+    ).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+  });
 
   it("surfaces bounded Problem Details without reflecting page content", async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -89,11 +88,31 @@ describe("Capture Package multipart transfer", () => {
 });
 
 function packageFixture(): StagedCapturePackage {
+  const png = Uint8Array.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0,
+  ]);
   return {
+    assetParts: [
+      {
+        id: "asset-0001",
+        mediaType: "image/png",
+        data: new Blob([png.buffer], { type: "image/png" }),
+      },
+    ],
     documentHtml:
       "<!DOCTYPE html><html><body><main>Article</main></body></html>",
     manifest: {
-      assets: [],
+      assets: [
+        {
+          id: "asset-0001",
+          sourceUrl: "https://example.com/diagram.png",
+          status: "captured",
+          mediaType: "image/png",
+          bytes: png.byteLength,
+          sha256:
+            "1b56b50ac4e976f488f128cabdcdffb2fc9331d6974bb9968131a415d14ade24",
+        },
+      ],
       baseUrl: "https://example.com/article",
       capturedAt: "2026-07-25T12:34:56.000Z",
       captureId: "019c0000-0000-7000-8000-000000000001",

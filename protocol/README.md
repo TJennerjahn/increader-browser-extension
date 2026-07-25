@@ -31,9 +31,17 @@ returns only `exists` plus an owned Bookmark identifier/title when present; it
 is not a library search or URL-equivalence API. The source URL travels in a
 minimal POST body so it does not enter ordinary request targets or access logs.
 
-Text-only Browser Capture import sends one immutable unversioned package as
-`multipart/form-data` with JSON `manifest` and UTF-8 `document` parts. The
-extension allocates a Capture ID only after explicit Import, stages the
-normalized live top-level DOM, and supplies no captured image binary parts in
-this slice. Increader returns its normal `BookmarkResponse` with `201` for a
-created Bookmark or `200` for the recorded existing/replay outcome.
+Browser Capture import sends one immutable unversioned package as
+`multipart/form-data` with JSON `manifest`, UTF-8 `document`, and raw captured
+image parts keyed by Capture Asset ID. The extension allocates a Capture ID only
+after explicit Import, stages the normalized live top-level DOM, shares
+repeated selected image candidates, and records failed or unsupported images
+as unavailable without failing an otherwise usable page.
+
+Increader validates marker/record/part agreement atomically, runs canonical
+Article Extraction with markers still opaque, and stores only captured assets
+that survive extraction. Unavailable HTTP(S) sources receive one normal bounded
+mirror attempt; unavailable data/blob sources keep their image structure and
+alternative text without an unusable source. Increader returns its normal
+`BookmarkResponse` with `201` for a created Bookmark or `200` for the recorded
+existing/replay outcome.

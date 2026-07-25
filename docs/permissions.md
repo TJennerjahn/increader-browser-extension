@@ -7,7 +7,7 @@ The production Chrome and Firefox manifests request the same narrow authority.
 - `activeTab` — temporary authority for the top-level page only after the User
   invokes the Browser Capture utility.
 - `scripting` — inject bounded top-frame inspection code that returns only
-  title, URL, and document type before Import; later Capture code uses the same
+  title, URL, and document type before Import; Capture code uses the same
   explicit active-tab authority.
 - `storage` — retain local Pairing metadata and small Capture Job state. Secret
   or captured content is never synchronized.

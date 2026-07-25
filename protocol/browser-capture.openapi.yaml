@@ -159,9 +159,10 @@ paths:
       operationId: importBrowserCapturePackage
       summary: Import one immutable Capture Package
       description: |
-        Accepts one atomic text-only Capture Package from the calling Pairing.
-        The Capture Source URL remains Bookmark identity while canonical and
-        base URLs are metadata/resolution hints. Capture ID idempotency is
+        Accepts one atomic Capture Package from the calling Pairing. Captured
+        binary asset parts use their Capture Asset ID as the multipart field
+        name. The Capture Source URL remains Bookmark identity while canonical
+        and base URLs are metadata/resolution hints. Capture ID idempotency is
         scoped to the paired User and logical package fingerprint.
       security:
         - browserCaptureAccess: []
@@ -171,7 +172,10 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              additionalProperties: false
+              additionalProperties:
+                type: string
+                format: binary
+                description: Raw captured image bytes keyed by Capture Asset ID.
               required:
                 - manifest
                 - document
@@ -501,10 +505,90 @@ components:
           $ref: "#/components/schemas/BrowserCaptureProducer"
         assets:
           type: array
-          maxItems: 0
-          items: {}
-          description: Text-only slice supplies no captured image binaries.
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/BrowserCaptureAsset"
+          description: |
+            Ordered by the first corresponding opaque marker in the document.
+            Repeated markers may reference one record. Every record must be
+            referenced and captured records require one same-ID binary part.
       additionalProperties: true
+    BrowserCaptureAsset:
+      oneOf:
+        - $ref: "#/components/schemas/BrowserCaptureCapturedAsset"
+        - $ref: "#/components/schemas/BrowserCaptureUnavailableAsset"
+    BrowserCaptureCapturedAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - sourceUrl
+        - status
+        - mediaType
+        - bytes
+        - sha256
+      properties:
+        id:
+          type: string
+          pattern: "^asset-[0-9]{4}$"
+        sourceUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: |
+            Resolved selected image provenance. Captured data images use the
+            bounded non-replayable value `data:`.
+        status:
+          type: string
+          enum:
+            - captured
+        mediaType:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/gif
+            - image/webp
+            - image/avif
+        bytes:
+          type: integer
+          minimum: 1
+          maximum: 8388608
+        sha256:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+    BrowserCaptureUnavailableAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - sourceUrl
+        - status
+        - reason
+      properties:
+        id:
+          type: string
+          pattern: "^asset-[0-9]{4}$"
+        sourceUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: |
+            Resolved selected image provenance. Non-replayable data images use
+            `data:` and blob images retain their bounded blob URL.
+        status:
+          type: string
+          enum:
+            - unavailable
+        reason:
+          type: string
+          enum:
+            - acquisition_failed
+            - timeout
+            - unsupported_type
+            - asset_too_large
+            - binary_limit
+            - aggregate_limit
     BrowserCaptureDocumentDigest:
       type: object
       additionalProperties: false

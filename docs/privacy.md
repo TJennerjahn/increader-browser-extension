@@ -9,11 +9,11 @@ allocate a Capture ID, or transfer page content before Import. Destination
 discovery sends one credential-free request to the exact Increader origin the
 User selects.
 
-When the complete capture workflow is enabled, pressing Import will read the
-current top-level page's URL, rendered text/HTML, bounded metadata, and selected
-image bytes. That can include material visible because the User is signed in to
-the page. The extension sends it only to the one paired Increader instance so
-Increader can create or find the User's Bookmark and normal Reader Content.
+Pressing Import reads the current top-level page's URL, rendered text/HTML,
+bounded metadata, and selected image bytes. That can include material visible
+because the User is signed in to the page. The extension sends it only to the
+one paired Increader instance so Increader can create or find the User's
+Bookmark and normal Reader Content.
 
 The installation UUID, rotating Browser Capture Renewal Credential, pairing
 metadata, and configured instance origin stay in extension-local,

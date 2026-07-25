@@ -3,20 +3,65 @@ import type { components } from "../protocol/generated/browser-capture";
 
 const DOCUMENT_HTML_BYTES_LIMIT = 5 * 1024 * 1024;
 const DOM_ELEMENTS_LIMIT = 100_000;
+const ASSET_RECORDS_LIMIT = 1_000;
+const CAPTURED_ASSETS_LIMIT = 60;
+const CAPTURED_ASSET_BYTES_LIMIT = 50 * 1024 * 1024;
 const LANGUAGE_CHARACTERS_LIMIT = 35;
 const TITLE_CODE_POINTS_LIMIT = 1_024;
 const URL_BYTES_LIMIT = 8_192;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export type CapturePackageManifest =
-  components["schemas"]["BrowserCapturePackageManifest"] & {
-    assets: [];
-  };
+export type CapturedImageMediaType =
+  "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/avif";
+
+export interface CapturedCaptureAsset {
+  id: string;
+  sourceUrl: string;
+  status: "captured";
+  mediaType: CapturedImageMediaType;
+  bytes: number;
+  sha256: string;
+}
+
+export interface UnavailableCaptureAsset {
+  id: string;
+  sourceUrl: string;
+  status: "unavailable";
+  reason:
+    | "acquisition_failed"
+    | "timeout"
+    | "unsupported_type"
+    | "asset_too_large"
+    | "binary_limit"
+    | "aggregate_limit";
+}
+
+export type CaptureAssetRecord = CapturedCaptureAsset | UnavailableCaptureAsset;
+
+export interface CapturePackageManifest {
+  captureId: string;
+  capturedAt: string;
+  sourceUrl: string;
+  baseUrl: string;
+  canonicalUrl?: string;
+  title?: string;
+  language?: string;
+  document: components["schemas"]["BrowserCaptureDocumentDigest"];
+  producer: components["schemas"]["BrowserCaptureProducer"];
+  assets: CaptureAssetRecord[];
+}
+
+export interface StagedCaptureAssetPart {
+  readonly id: string;
+  readonly mediaType: CapturedImageMediaType;
+  readonly data: Blob;
+}
 
 export interface StagedCapturePackage {
   readonly manifest: Readonly<CapturePackageManifest>;
   readonly documentHtml: string;
+  readonly assetParts: readonly Readonly<StagedCaptureAssetPart>[];
 }
 
 export interface CapturePackageAssembler {
@@ -44,6 +89,22 @@ interface CapturedTopLevelDocument {
   language?: string;
   documentHtml: string;
   domElements: number;
+  assets: CapturedPageAsset[];
+}
+
+interface CapturedPageAsset {
+  id: string;
+  sourceUrl: string;
+  outcome:
+    | {
+        status: "captured";
+        mediaType: CapturedImageMediaType;
+        chunks: string[];
+      }
+    | {
+        status: "unavailable";
+        reason: UnavailableCaptureAsset["reason"];
+      };
 }
 
 export function createCapturePackageAssembler({
@@ -61,7 +122,7 @@ export function createCapturePackageAssembler({
           {
             func: captureTopLevelDocument,
             target: { tabId: page.tabId },
-            world: "ISOLATED",
+            world: "MAIN",
           },
           done,
         );
@@ -71,9 +132,7 @@ export function createCapturePackageAssembler({
         throw captureFailure("The active page could not be captured.");
       }
       if (captured.sourceUrl !== page.sourceUrl) {
-        throw captureFailure(
-          "The active page changed before capture started.",
-        );
+        throw captureFailure("The active page changed before capture started.");
       }
       if (captured.contentType !== "text/html") {
         throw captureFailure("Only HTML pages can be imported.");
@@ -85,6 +144,62 @@ export function createCapturePackageAssembler({
         throw captureFailure("A Capture ID could not be created.");
       }
       const documentBytes = new TextEncoder().encode(captured.documentHtml);
+      const assets: CaptureAssetRecord[] = [];
+      const assetParts: StagedCaptureAssetPart[] = [];
+      let capturedAssetCount = 0;
+      let capturedAssetBytes = 0;
+      for (const asset of captured.assets) {
+        if (asset.outcome.status === "unavailable") {
+          assets.push({
+            id: asset.id,
+            sourceUrl: asset.sourceUrl,
+            status: "unavailable",
+            reason: asset.outcome.reason,
+          });
+          continue;
+        }
+        const bytes = decodeChunks(asset.outcome.chunks);
+        if (capturedAssetCount >= CAPTURED_ASSETS_LIMIT) {
+          assets.push({
+            id: asset.id,
+            sourceUrl: asset.sourceUrl,
+            status: "unavailable",
+            reason: "binary_limit",
+          });
+          continue;
+        }
+        if (
+          capturedAssetBytes + bytes.byteLength >
+          CAPTURED_ASSET_BYTES_LIMIT
+        ) {
+          assets.push({
+            id: asset.id,
+            sourceUrl: asset.sourceUrl,
+            status: "unavailable",
+            reason: "aggregate_limit",
+          });
+          continue;
+        }
+        assets.push({
+          id: asset.id,
+          sourceUrl: asset.sourceUrl,
+          status: "captured",
+          mediaType: asset.outcome.mediaType,
+          bytes: bytes.byteLength,
+          sha256: await sha256Hex(bytes),
+        });
+        assetParts.push(
+          Object.freeze({
+            id: asset.id,
+            mediaType: asset.outcome.mediaType,
+            data: new Blob([Uint8Array.from(bytes).buffer], {
+              type: asset.outcome.mediaType,
+            }),
+          }),
+        );
+        capturedAssetCount += 1;
+        capturedAssetBytes += bytes.byteLength;
+      }
       const manifest: CapturePackageManifest = {
         captureId,
         capturedAt: now().toISOString(),
@@ -105,36 +220,274 @@ export function createCapturePackageAssembler({
           extensionVersion: boundedProducerField(producer.extensionVersion),
           browser: boundedProducerField(producer.browser),
         },
-        assets: [],
+        assets,
       };
+      Object.freeze(assetParts);
       return Object.freeze({
         manifest: freezeManifest(manifest),
         documentHtml: captured.documentHtml,
+        assetParts,
       });
     },
   };
 }
 
-function captureTopLevelDocument(): CapturedTopLevelDocument {
+/**
+ * This function is serialized by chrome.scripting, so every dependency used in
+ * page context intentionally lives inside its body.
+ */
+async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
+  const marker = "increader:browser-capture-asset/";
+  const assetBytesLimit = 8 * 1024 * 1024;
+  const assetRecordsLimit = 1_000;
+  const assetTimeoutMilliseconds = 15_000;
+  const binaryChunkBytes = 192 * 1024;
+  const lazyUrlAttributes = [
+    "data-src",
+    "data-original",
+    "data-lazy-src",
+    "data-src-url",
+  ];
+  const lazySrcsetAttributes = ["data-srcset", "data-lazy-srcset"];
+
+  const resolveImageUrl = (value: string | null, base: URL): string | null => {
+    if (value === null || value.trim() === "") return null;
+    try {
+      const resolved = new URL(value, base);
+      if (
+        (resolved.protocol !== "http:" &&
+          resolved.protocol !== "https:" &&
+          resolved.protocol !== "data:" &&
+          resolved.protocol !== "blob:") ||
+        resolved.username !== "" ||
+        resolved.password !== "" ||
+        resolved.href.startsWith(marker)
+      ) {
+        return null;
+      }
+      return resolved.toString();
+    } catch {
+      return null;
+    }
+  };
+  const firstSrcsetCandidate = (
+    value: string | null,
+    base: URL,
+  ): string | null => {
+    if (value === null) return null;
+    for (const candidate of value.split(",")) {
+      const url = candidate.trim().split(/\s+/, 1)[0];
+      const resolved = resolveImageUrl(url ?? null, base);
+      if (resolved !== null) return resolved;
+    }
+    return null;
+  };
+  const isObviousLazyPlaceholder = (value: string): boolean => {
+    const lower = value.toLowerCase();
+    return (
+      lower === "about:blank" ||
+      lower.includes("transparent.gif") ||
+      lower.includes("spacer.gif") ||
+      lower.includes("pixel.gif") ||
+      lower.startsWith(
+        "data:image/gif;base64,r0lgodlhaqabaiaaaaaaap///ywaaaaaaqabaaacauwaow==",
+      )
+    );
+  };
+  const selectImageCandidate = (
+    image: HTMLImageElement,
+    base: URL,
+  ): string | null => {
+    const current = resolveImageUrl(image.currentSrc, base);
+    if (current !== null && !isObviousLazyPlaceholder(current)) {
+      return current;
+    }
+    for (const name of lazyUrlAttributes) {
+      const lazy = resolveImageUrl(image.getAttribute(name), base);
+      if (lazy !== null && !isObviousLazyPlaceholder(lazy)) {
+        return lazy;
+      }
+    }
+    for (const name of lazySrcsetAttributes) {
+      const lazy = firstSrcsetCandidate(image.getAttribute(name), base);
+      if (lazy !== null && !isObviousLazyPlaceholder(lazy)) {
+        return lazy;
+      }
+    }
+    const source = resolveImageUrl(image.getAttribute("src"), base);
+    if (source !== null && !isObviousLazyPlaceholder(source)) {
+      return source;
+    }
+    const responsive = firstSrcsetCandidate(image.getAttribute("srcset"), base);
+    if (responsive !== null && !isObviousLazyPlaceholder(responsive)) {
+      return responsive;
+    }
+    return current ?? source ?? responsive;
+  };
+  const removeResponsiveAlternatives = (image: Element): void => {
+    for (const name of [
+      "srcset",
+      "sizes",
+      ...lazyUrlAttributes,
+      ...lazySrcsetAttributes,
+    ]) {
+      image.removeAttribute(name);
+    }
+  };
+  const ascii = (bytes: Uint8Array, start: number, length: number): string =>
+    String.fromCharCode(...bytes.slice(start, start + length));
+  const sniffMediaType = (bytes: Uint8Array): CapturedImageMediaType | null => {
+    if (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    ) {
+      return "image/jpeg";
+    }
+    if (
+      bytes.length >= 8 &&
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+        (value, index) => bytes[index] === value,
+      )
+    ) {
+      return "image/png";
+    }
+    if (
+      bytes.length >= 6 &&
+      (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a")
+    ) {
+      return "image/gif";
+    }
+    if (
+      bytes.length >= 12 &&
+      ascii(bytes, 0, 4) === "RIFF" &&
+      ascii(bytes, 8, 4) === "WEBP"
+    ) {
+      return "image/webp";
+    }
+    if (bytes.length >= 16 && ascii(bytes, 4, 4) === "ftyp") {
+      const declaredBoxLength =
+        ((bytes[0] ?? 0) << 24) |
+        ((bytes[1] ?? 0) << 16) |
+        ((bytes[2] ?? 0) << 8) |
+        (bytes[3] ?? 0);
+      const boxLength =
+        declaredBoxLength > 0
+          ? Math.min(bytes.length, declaredBoxLength)
+          : bytes.length;
+      for (let offset = 8; offset + 4 <= boxLength; offset += 4) {
+        const brand = ascii(bytes, offset, 4);
+        if (brand === "avif" || brand === "avis") {
+          return "image/avif";
+        }
+      }
+    }
+    return null;
+  };
+  const encodeChunks = (bytes: Uint8Array): string[] => {
+    const result: string[] = [];
+    for (let start = 0; start < bytes.length; start += binaryChunkBytes) {
+      const chunk = bytes.slice(start, start + binaryChunkBytes);
+      let binary = "";
+      for (const value of chunk) binary += String.fromCharCode(value);
+      result.push(btoa(binary));
+    }
+    return result;
+  };
+  const acquire = async (
+    sourceUrl: string,
+  ): Promise<CapturedPageAsset["outcome"]> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, assetTimeoutMilliseconds);
+    try {
+      const response = await fetch(sourceUrl, {
+        credentials: "include",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        return { status: "unavailable", reason: "acquisition_failed" };
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > assetBytesLimit) {
+        return { status: "unavailable", reason: "asset_too_large" };
+      }
+      const mediaType = sniffMediaType(bytes);
+      if (mediaType === null) {
+        return { status: "unavailable", reason: "unsupported_type" };
+      }
+      return {
+        status: "captured",
+        mediaType,
+        chunks: encodeChunks(bytes),
+      };
+    } catch (error) {
+      return {
+        status: "unavailable",
+        reason:
+          error instanceof DOMException && error.name === "AbortError"
+            ? "timeout"
+            : "acquisition_failed",
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
   const source = new URL(location.href);
   source.hash = "";
   const base = new URL(document.baseURI);
   base.hash = "";
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
+  const liveImages = Array.from(document.querySelectorAll("img"));
+  const clonedImages = Array.from(clone.querySelectorAll("img"));
   const domElements = clone.querySelectorAll("*").length + 1;
   clone
-    .querySelectorAll("script, iframe, frame, frameset, object, embed")
+    .querySelectorAll(
+      "script, iframe, frame, frameset, object, embed, canvas, video, audio",
+    )
     .forEach((element) => {
       element.remove();
     });
-  for (const element of [
-    clone,
-    ...Array.from(clone.querySelectorAll("*")),
-  ]) {
+  clone.querySelectorAll("style").forEach((element) => {
+    element.remove();
+  });
+  clone.querySelectorAll("link").forEach((element) => {
+    const relationships = new Set(
+      element.rel.toLowerCase().split(/\s+/).filter(Boolean),
+    );
+    const resourceKind = element.getAttribute("as")?.toLowerCase();
+    if (
+      relationships.has("stylesheet") ||
+      relationships.has("icon") ||
+      relationships.has("apple-touch-icon") ||
+      relationships.has("image_src") ||
+      (relationships.has("preload") &&
+        (resourceKind === "font" ||
+          resourceKind === "image" ||
+          resourceKind === "style"))
+    ) {
+      element.remove();
+    }
+  });
+  clone.querySelectorAll("meta").forEach((element) => {
+    const metadataName = (
+      element.getAttribute("property") ??
+      element.getAttribute("name") ??
+      ""
+    ).toLowerCase();
+    if (metadataName.endsWith("image")) {
+      element.remove();
+    }
+  });
+  for (const element of [clone, ...Array.from(clone.querySelectorAll("*"))]) {
     for (const attribute of Array.from(element.attributes)) {
       const name = attribute.name.toLowerCase();
       if (
         name.startsWith("on") ||
+        name === "style" ||
         name.startsWith("data-increader-capture") ||
         name.startsWith("data-browser-capture")
       ) {
@@ -143,19 +496,69 @@ function captureTopLevelDocument(): CapturedTopLevelDocument {
     }
   }
 
+  const candidates: Array<{
+    id: string;
+    acquisitionUrl: string;
+    sourceUrl: string;
+  }> = [];
+  const assetsByCandidate = new Map<string, string>();
+  for (let index = 0; index < liveImages.length; index += 1) {
+    const liveImage = liveImages[index];
+    const clonedImage = clonedImages[index];
+    if (
+      liveImage === undefined ||
+      clonedImage === undefined ||
+      !clone.contains(clonedImage)
+    ) {
+      continue;
+    }
+    const selected = selectImageCandidate(liveImage, base);
+    removeResponsiveAlternatives(clonedImage);
+    if (selected === null) {
+      if (clonedImage.getAttribute("src")?.startsWith(marker)) {
+        clonedImage.removeAttribute("src");
+      }
+      continue;
+    }
+    let assetId = assetsByCandidate.get(selected);
+    if (assetId === undefined) {
+      if (candidates.length >= assetRecordsLimit) {
+        throw new Error("The page contains too many selected images.");
+      }
+      assetId = `asset-${String(candidates.length + 1).padStart(4, "0")}`;
+      assetsByCandidate.set(selected, assetId);
+      candidates.push({
+        id: assetId,
+        acquisitionUrl: selected,
+        sourceUrl: selected.startsWith("data:") ? "data:" : selected,
+      });
+    }
+    clonedImage.setAttribute("src", `${marker}${assetId}`);
+  }
+  clone.querySelectorAll("picture source").forEach((element) => {
+    element.remove();
+  });
+  const assets: CapturedPageAsset[] = await Promise.all(
+    candidates.map(async (asset) => ({
+      id: asset.id,
+      sourceUrl: asset.sourceUrl,
+      outcome: await acquire(asset.acquisitionUrl),
+    })),
+  );
+
   const serializedDoctype =
     document.doctype === null
       ? ""
       : new XMLSerializer().serializeToString(document.doctype);
-  const canonicalHref =
-    document.querySelector<HTMLLinkElement>('link[rel~="canonical"]')?.href;
+  const canonicalHref = document.querySelector<HTMLLinkElement>(
+    'link[rel~="canonical"]',
+  )?.href;
   let canonicalUrl: string | undefined;
   if (canonicalHref !== undefined) {
     try {
       const candidate = new URL(canonicalHref);
       if (
-        (candidate.protocol === "http:" ||
-          candidate.protocol === "https:") &&
+        (candidate.protocol === "http:" || candidate.protocol === "https:") &&
         candidate.username === "" &&
         candidate.password === "" &&
         candidate.hash === "" &&
@@ -178,6 +581,7 @@ function captureTopLevelDocument(): CapturedTopLevelDocument {
       : { language: document.documentElement.lang }),
     documentHtml: `${serializedDoctype}${clone.outerHTML}`,
     domElements,
+    assets,
   };
 }
 
@@ -187,7 +591,10 @@ function validateCapturedDocument(captured: CapturedTopLevelDocument): void {
   if (captured.canonicalUrl !== undefined) {
     validateHttpUrl(captured.canonicalUrl, "Capture Canonical URL");
   }
-  if (captured.domElements > DOM_ELEMENTS_LIMIT) {
+  if (
+    captured.domElements > DOM_ELEMENTS_LIMIT ||
+    captured.assets.length > ASSET_RECORDS_LIMIT
+  ) {
     throw captureFailure("The page contains too many elements to import.");
   }
   const bytes = new TextEncoder().encode(captured.documentHtml).byteLength;
@@ -241,6 +648,7 @@ function freezeManifest(
 ): Readonly<CapturePackageManifest> {
   Object.freeze(manifest.document);
   Object.freeze(manifest.producer);
+  manifest.assets.forEach((asset) => Object.freeze(asset));
   Object.freeze(manifest.assets);
   return Object.freeze(manifest);
 }
@@ -253,6 +661,21 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)]
     .map((value) => value.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function decodeChunks(chunks: string[]): Uint8Array {
+  const decoded = chunks.map((chunk) => atob(chunk));
+  const bytes = new Uint8Array(
+    decoded.reduce((length, chunk) => length + chunk.length, 0),
+  );
+  let offset = 0;
+  for (const chunk of decoded) {
+    for (let index = 0; index < chunk.length; index += 1) {
+      bytes[offset + index] = chunk.charCodeAt(index);
+    }
+    offset += chunk.length;
+  }
+  return bytes;
 }
 
 function isCapturedTopLevelDocument(
@@ -273,7 +696,48 @@ function isCapturedTopLevelDocument(
       typeof candidate.language === "string") &&
     typeof candidate.documentHtml === "string" &&
     typeof candidate.domElements === "number" &&
-    Number.isInteger(candidate.domElements)
+    Number.isInteger(candidate.domElements) &&
+    Array.isArray(candidate.assets) &&
+    candidate.assets.every(isCapturedPageAsset)
+  );
+}
+
+function isCapturedPageAsset(value: unknown): value is CapturedPageAsset {
+  if (value === null || typeof value !== "object") return false;
+  const asset = value as Record<string, unknown>;
+  if (
+    typeof asset.id !== "string" ||
+    !/^asset-[0-9]{4}$/.test(asset.id) ||
+    typeof asset.sourceUrl !== "string" ||
+    asset.outcome === null ||
+    typeof asset.outcome !== "object"
+  ) {
+    return false;
+  }
+  const outcome = asset.outcome as Record<string, unknown>;
+  if (outcome.status === "captured") {
+    return (
+      [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/avif",
+      ].includes(String(outcome.mediaType)) &&
+      Array.isArray(outcome.chunks) &&
+      outcome.chunks.every((chunk) => typeof chunk === "string")
+    );
+  }
+  return (
+    outcome.status === "unavailable" &&
+    [
+      "acquisition_failed",
+      "timeout",
+      "unsupported_type",
+      "asset_too_large",
+      "binary_limit",
+      "aggregate_limit",
+    ].includes(String(outcome.reason))
   );
 }
 
@@ -287,8 +751,7 @@ function callbackResult<T>(
   return new Promise((resolve, reject) => {
     invoke((value) => {
       const browserApi = Reflect.get(globalThis, "chrome") as
-        | typeof chrome
-        | undefined;
+        typeof chrome | undefined;
       const error = browserApi?.runtime.lastError;
       if (error === undefined) {
         resolve(value);
