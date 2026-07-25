@@ -1049,7 +1049,13 @@ async function waitForChromeImportStarted(popup) {
       const status = document
         .querySelector("[data-page-status]")
         ?.textContent?.trim();
-      return status === "Capturing page" || status === "Sending to Increader";
+      return [
+        "Import authorized",
+        "Capturing page",
+        "Sending to Increader",
+        "Imported",
+        "Already in Increader",
+      ].includes(status);
     },
     { timeout: 15_000 },
   );
@@ -1271,7 +1277,13 @@ async function waitForFirefoxImportStarted(driver) {
         "[data-page-status]"
       )?.textContent?.trim();`,
     );
-    return status === "Capturing page" || status === "Sending to Increader";
+    return [
+      "Import authorized",
+      "Capturing page",
+      "Sending to Increader",
+      "Imported",
+      "Already in Increader",
+    ].includes(status);
   });
 }
 
