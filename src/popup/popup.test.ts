@@ -35,7 +35,6 @@ describe("compact Browser Capture popup", () => {
 
     expect(getByText(root, "Browser Capture")).toBeTruthy();
     expect(getByText(root, "Not connected")).toBeTruthy();
-    expect(getByText(root, "Increader Cloud")).toBeTruthy();
     expect(getByText(root, "Connection settings")).toBeTruthy();
     expect(
       getByRole<HTMLInputElement>(root, "textbox", {
@@ -44,7 +43,7 @@ describe("compact Browser Capture popup", () => {
     ).toBe(CLOUD_INSTANCE_ORIGIN);
 
     fireEvent.click(
-      getByRole(root, "button", { name: "Connect to Increader Cloud" }),
+      getByRole(root, "button", { name: "Connect to Increader" }),
     );
     await vi.waitFor(() => {
       expect(connect).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
@@ -52,7 +51,7 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("shows the approved account destination and disconnects explicitly", async () => {
+  it("shows the paired state without a destination badge and disconnects explicitly", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined);
     const pairing: Pairing = {
       accessToken: () => Promise.resolve("bca_memory"),
@@ -79,8 +78,8 @@ describe("compact Browser Capture popup", () => {
 
     await vi.waitFor(() => {
       expect(getByText(root, "Paired")).toBeTruthy();
-      expect(getByText(root, "Home Reader")).toBeTruthy();
     });
+    expect(root.querySelector("[data-destination]")).toBeNull();
     expect(root.textContent).not.toContain("Browser Capture sends only to");
     expect(root.querySelector(".status-dot")).toBeNull();
     const disconnectButton = getByRole(root, "button", {
@@ -132,12 +131,11 @@ describe("compact Browser Capture popup", () => {
     expect(connect).not.toHaveBeenCalled();
 
     fireEvent.click(
-      getByRole(root, "button", { name: "Connect to reader.example" }),
+      getByRole(root, "button", { name: "Connect to Increader" }),
     );
 
     await vi.waitFor(() => {
       expect(connect).toHaveBeenCalledWith("https://reader.example");
-      expect(getByText(root, "Home Reader")).toBeTruthy();
       expect(getByText(root, "Paired")).toBeTruthy();
     });
   });
@@ -172,7 +170,7 @@ describe("compact Browser Capture popup", () => {
       ).toBe("https://reader.example");
     });
     fireEvent.click(
-      getByRole(root, "button", { name: "Connect to reader.example" }),
+      getByRole(root, "button", { name: "Connect to Increader" }),
     );
 
     await vi.waitFor(() => {

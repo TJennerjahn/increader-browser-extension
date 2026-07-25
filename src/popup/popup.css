@@ -20,7 +20,6 @@
   --bc: 27.8078% 0.029596 256.847952;
   --rounded-box: 1rem;
   --rounded-btn: 0.5rem;
-  --rounded-badge: 1.9rem;
   --animation-btn: 0.25s;
   --btn-focus-scale: 0.95;
   --border-btn: 1px;
@@ -156,42 +155,6 @@ h1 {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
-}
-
-/* Ported from the app Badge primitive. */
-.badge {
-  display: inline-flex;
-  width: fit-content;
-  height: 1.25rem;
-  align-items: center;
-  justify-content: center;
-  padding-right: 0.563rem;
-  padding-left: 0.563rem;
-  border: 1px solid oklch(var(--b2));
-  border-radius: var(--rounded-badge);
-  color: oklch(var(--bc));
-  background: oklch(var(--b1));
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  transition:
-    color 0.2s cubic-bezier(0, 0, 0.2, 1),
-    background-color 0.2s cubic-bezier(0, 0, 0.2, 1),
-    border-color 0.2s cubic-bezier(0, 0, 0.2, 1);
-}
-
-.destination {
-  max-width: 142px;
-  height: auto;
-  min-height: 22px;
-  overflow: hidden;
-  border-color: oklch(var(--p) / 0.22);
-  color: oklch(var(--p));
-  background: oklch(var(--p) / 0.08);
-  font-size: 10px;
-  font-weight: 650;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Ported from Card, CardBody, and the shared card-surface treatment. */

@@ -51,7 +51,6 @@ export function mountPopup(
             <p>Browser Capture</p>
           </div>
         </div>
-        <span class="badge destination" data-destination>Increader Cloud</span>
       </header>
 
       <section
@@ -90,7 +89,7 @@ export function mountPopup(
               type="button"
               data-cloud-connect
             >
-              Connect to Increader Cloud
+              Connect to Increader
             </button>
           </div>
         </div>
@@ -225,10 +224,6 @@ export function mountPopup(
   ) as HTMLElement;
   const status = requiredElement(root, "[data-status]") as HTMLElement;
   const detail = requiredElement(root, "[data-detail]") as HTMLElement;
-  const destination = requiredElement(
-    root,
-    "[data-destination]",
-  ) as HTMLElement;
   const disconnectButton = requiredElement(
     root,
     "[data-disconnect]",
@@ -276,17 +271,8 @@ export function mountPopup(
     null;
   const isDisposed = (): boolean => disposed;
 
-  const configuredDestinationLabel = (): string =>
-    configuredOrigin === CLOUD_INSTANCE_ORIGIN
-      ? "Increader Cloud"
-      : new URL(configuredOrigin).host;
-
   const renderConfiguredOrigin = (): void => {
     originInput.value = configuredOrigin;
-    cloudButton.textContent =
-      configuredOrigin === CLOUD_INSTANCE_ORIGIN
-        ? "Connect to Increader Cloud"
-        : `Connect to ${configuredDestinationLabel()}`;
   };
 
   const showDisconnected = (message?: string): void => {
@@ -299,7 +285,6 @@ export function mountPopup(
     importActive = false;
     pageCard.hidden = true;
     renderConfiguredOrigin();
-    destination.textContent = configuredDestinationLabel();
     status.textContent = "Not connected";
     detail.textContent =
       message ?? "Connect this browser before importing the current page.";
@@ -316,9 +301,6 @@ export function mountPopup(
     pairedDestination = paired;
     renderConfiguredOrigin();
     const configuredPairing = paired.origin === configuredOrigin;
-    destination.textContent = configuredPairing
-      ? paired.displayName
-      : configuredDestinationLabel();
     status.textContent = "Paired";
     detail.textContent = configuredPairing
       ? ""
