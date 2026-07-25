@@ -29,57 +29,158 @@ export function mountPopup(
   root.innerHTML = `
     <section class="popup-shell" aria-labelledby="popup-title">
       <header class="popup-header">
-        <div>
-          <h1 id="popup-title">Browser Capture</h1>
-          <p class="destination" data-destination>Increader Cloud</p>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32">
+              <rect width="32" height="32" rx="8" fill="currentColor"></rect>
+              <g transform="translate(7, 7) scale(0.75)">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </g>
+            </svg>
+          </span>
+          <div class="brand-copy">
+            <h1 id="popup-title">Increader</h1>
+            <p>Browser Capture</p>
+          </div>
         </div>
-        <span class="status-dot" aria-hidden="true"></span>
+        <span class="badge destination" data-destination>Increader Cloud</span>
       </header>
 
-      <section class="connection-card" aria-live="polite">
-        <p class="eyebrow">Connection</p>
-        <p class="connection-status" data-status>Not connected</p>
-        <p class="connection-detail" data-detail>
-          Connect this browser before importing the current page.
-        </p>
-        <button class="primary-action" type="button" data-cloud-connect>
-          Connect to Increader Cloud
-        </button>
-        <button class="secondary-action" type="button" data-disconnect hidden>
-          Disconnect
-        </button>
-      </section>
-
-      <section class="page-card" data-page-card aria-live="polite" hidden>
-        <p class="eyebrow">Current page</p>
-        <h2 class="page-title" data-page-title>Inspecting…</h2>
-        <p class="page-source" data-page-source></p>
-        <p class="page-status" data-page-status>Inspecting…</p>
-        <p class="page-detail" data-page-detail></p>
-        <div class="page-actions">
-          <button class="primary-action" type="button" data-import disabled>
-            Import
-          </button>
-          <button class="secondary-action" type="button" data-open-reader hidden>
-            Open Reader
-          </button>
-          <button class="secondary-action" type="button" data-cancel hidden>
-            Cancel
-          </button>
-          <button class="primary-action" type="button" data-retry hidden>
-            Retry
-          </button>
-          <button class="secondary-action" type="button" data-discard hidden>
-            Discard
-          </button>
+      <section
+        class="connection-card card card-surface"
+        data-connection-card
+        data-state="disconnected"
+        aria-live="polite"
+      >
+        <div class="card-body">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+            </span>
+            <div class="section-copy">
+              <p class="eyebrow">Connection</p>
+              <p class="connection-status" data-status>Not connected</p>
+            </div>
+            <span class="status-dot" aria-hidden="true"></span>
+          </div>
+          <p class="connection-detail" data-detail>
+            Connect this browser before importing the current page.
+          </p>
+          <div class="connection-actions">
+            <button
+              class="primary-action btn btn-primary btn-block"
+              type="button"
+              data-cloud-connect
+            >
+              Connect to Increader Cloud
+            </button>
+            <button
+              class="secondary-action btn btn-ghost btn-sm btn-block"
+              type="button"
+              data-disconnect
+              hidden
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
       </section>
 
-      <details class="settings">
-        <summary>Connection settings</summary>
-        <form data-self-hosted-form>
-          <label for="self-hosted-origin">Self-hosted Increader origin</label>
+      <section
+        class="page-card card card-surface"
+        data-page-card
+        aria-live="polite"
+        hidden
+      >
+        <div class="card-body">
+          <div class="page-heading">
+            <span class="section-icon page-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+            </span>
+            <div class="page-copy">
+              <p class="eyebrow">Current page</p>
+              <h2 class="page-title" data-page-title>Inspecting…</h2>
+            </div>
+          </div>
+          <p class="page-source" data-page-source></p>
+          <div class="page-feedback">
+            <span class="feedback-dot" aria-hidden="true"></span>
+            <div>
+              <p class="page-status" data-page-status>Inspecting…</p>
+              <p class="page-detail" data-page-detail></p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button
+              class="primary-action btn btn-primary"
+              type="button"
+              data-import
+              disabled
+            >
+              Import
+            </button>
+            <button
+              class="secondary-action btn btn-outline"
+              type="button"
+              data-open-reader
+              hidden
+            >
+              Open Reader
+            </button>
+            <button
+              class="secondary-action btn btn-ghost"
+              type="button"
+              data-cancel
+              hidden
+            >
+              Cancel
+            </button>
+            <button
+              class="primary-action btn btn-primary"
+              type="button"
+              data-retry
+              hidden
+            >
+              Retry
+            </button>
+            <button
+              class="secondary-action btn btn-ghost"
+              type="button"
+              data-discard
+              hidden
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <details class="settings collapse">
+        <summary class="settings-summary">
+          <span class="settings-label">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.7.6 1 .3.25.68.4 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"></path>
+            </svg>
+            Connection settings
+          </span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m9 18 6-6-6-6"></path>
+          </svg>
+        </summary>
+        <form class="settings-content" data-self-hosted-form>
+          <label class="label" for="self-hosted-origin">
+            <span class="label-text">Self-hosted Increader origin</span>
+          </label>
           <input
+            class="input input-bordered"
             id="self-hosted-origin"
             name="origin"
             type="url"
@@ -88,18 +189,27 @@ export function mountPopup(
             placeholder="https://reader.example"
             required
           />
-          <button class="secondary-action" type="submit">
+          <button
+            class="secondary-action btn btn-outline btn-block"
+            type="submit"
+          >
             Use self-hosted instance
           </button>
         </form>
       </details>
 
-      <p class="privacy-note">
-        Before Import, only the active page title, URL, and document type are
-        read. Only the URL is sent to your paired Increader for Bookmark Lookup;
-        page content is not read or sent. Import reads the rendered page and
-        sends it only to that paired Increader instance.
-      </p>
+      <div class="privacy-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"></path>
+          <path d="m9 12 2 2 4-4"></path>
+        </svg>
+        <p>
+          Before Import, only the active page title, URL, and document type are
+          read. Only the URL is sent to your paired Increader for Bookmark Lookup;
+          page content is not read or sent. Import reads the rendered page and
+          sends it only to that paired Increader instance.
+        </p>
+      </div>
     </section>
   `;
 
@@ -115,6 +225,10 @@ export function mountPopup(
     root,
     "#self-hosted-origin",
   ) as HTMLInputElement;
+  const connectionCard = requiredElement(
+    root,
+    "[data-connection-card]",
+  ) as HTMLElement;
   const status = requiredElement(root, "[data-status]") as HTMLElement;
   const detail = requiredElement(root, "[data-detail]") as HTMLElement;
   const destination = requiredElement(
@@ -167,6 +281,7 @@ export function mountPopup(
   const isDisposed = (): boolean => disposed;
 
   const showDisconnected = (message?: string): void => {
+    connectionCard.dataset.state = "disconnected";
     pairedDestination = null;
     currentPage = null;
     existingBookmarkId = null;
@@ -187,6 +302,7 @@ export function mountPopup(
     displayName: string;
     origin: string;
   }): void => {
+    connectionCard.dataset.state = "paired";
     pairedDestination = paired;
     destination.textContent = paired.displayName;
     status.textContent = "Paired";
@@ -200,6 +316,7 @@ export function mountPopup(
 
   const renderPairingOperation = (operation: PairingOperationState): void => {
     if (operation.phase === "waiting-permission") {
+      connectionCard.dataset.state = "connecting";
       status.textContent = "Connecting…";
       detail.textContent =
         "Allow access to this Increader instance in the browser prompt.";
@@ -208,6 +325,7 @@ export function mountPopup(
       return;
     }
     if (operation.phase === "connecting") {
+      connectionCard.dataset.state = "connecting";
       status.textContent = "Connecting…";
       detail.textContent = "Approve Browser Capture in the Increader window.";
       cloudButton.disabled = true;
@@ -318,6 +436,7 @@ export function mountPopup(
   }
 
   const connect = async (origin: string): Promise<void> => {
+    connectionCard.dataset.state = "connecting";
     cloudButton.disabled = true;
     status.textContent = "Connecting…";
     detail.textContent = "Approve Browser Capture in the Increader window.";
@@ -343,6 +462,7 @@ export function mountPopup(
     void connect(originInput.value);
   };
   const onDisconnect = (): void => {
+    connectionCard.dataset.state = "connecting";
     disconnectButton.disabled = true;
     status.textContent = "Disconnecting…";
     void pairing
@@ -352,6 +472,7 @@ export function mountPopup(
       })
       .catch(() => {
         if (isDisposed()) return;
+        connectionCard.dataset.state = "paired";
         status.textContent = "Could not disconnect";
         detail.textContent =
           "Increader could not revoke this installation. Try again.";
