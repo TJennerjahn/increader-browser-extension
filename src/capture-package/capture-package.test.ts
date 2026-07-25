@@ -19,6 +19,9 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
           <link rel="stylesheet" href="publisher.css">
           <link rel="icon" href="favicon.png">
           <meta property="og:image" content="metadata-cover.png">
+          <meta property="og:image:secure_url" content="metadata-secure.png">
+          <meta name="twitter:image:src" content="metadata-twitter.png">
+          <meta itemprop="image" content="metadata-itemprop.png">
           <style>main { background-image: url(background.png); }</style>
           <title>Initial title</title>
         </head>
@@ -98,6 +101,9 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
     expect(staged.documentHtml).not.toContain("Initial heading");
     expect(staged.documentHtml).not.toMatch(
       /<script|<style|stylesheet|rel="icon"|og:image|style=|onclick=|<iframe|<object|<embed|<canvas|<video|<audio|data-increader-capture/i,
+    );
+    expect(staged.documentHtml).not.toMatch(
+      /metadata-(?:cover|secure|twitter|itemprop)\.png/,
     );
     expect(Object.isFrozen(staged)).toBe(true);
     expect(Object.isFrozen(staged.manifest)).toBe(true);

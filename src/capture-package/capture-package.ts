@@ -473,12 +473,14 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
     }
   });
   clone.querySelectorAll("meta").forEach((element) => {
-    const metadataName = (
-      element.getAttribute("property") ??
-      element.getAttribute("name") ??
-      ""
-    ).toLowerCase();
-    if (metadataName.endsWith("image")) {
+    const names = ["property", "name", "itemprop"].flatMap((attribute) =>
+      (element.getAttribute(attribute) ?? "").toLowerCase().trim().split(/\s+/),
+    );
+    if (
+      names.some((name) =>
+        name.split(":").some((segment) => segment === "image"),
+      )
+    ) {
       element.remove();
     }
   });
