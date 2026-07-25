@@ -767,7 +767,9 @@ async function runFirefoxWorkflow({
     await driver.setContext(firefox.Context.CONTENT);
     await driver.switchTo().window(firstReaderHandle);
     await waitFor(async () => {
-      const text = await driver.findElement(By.css("body")).getText();
+      const text = await driver.executeScript(
+        `return document.body?.innerText ?? "";`,
+      );
       return text.includes(
         "This exact rendered text must appear in Reader Content.",
       );
