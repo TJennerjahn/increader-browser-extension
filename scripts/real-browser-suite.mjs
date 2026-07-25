@@ -655,7 +655,12 @@ async function runFirefoxWorkflow({
       throw error;
     }
     await driver.wait(until.elementIsVisible(permissionButton), 15_000);
-    await permissionButton.click();
+    try {
+      await permissionButton.click();
+    } catch (error) {
+      if (error?.name !== "ElementNotInteractableError") throw error;
+      await driver.executeScript("arguments[0].click();", permissionButton);
+    }
     console.log("Firefox host permission granted");
     await driver.executeScript(`
       const extensionPopup = document.getElementById(
