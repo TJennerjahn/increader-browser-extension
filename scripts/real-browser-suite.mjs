@@ -1359,7 +1359,7 @@ async function firefoxBrowserClick(driver, urlPrefix, selector) {
         })
       };
       actor.findElement("css selector", selector, {
-        timeout: 0,
+        timeout: 15_000,
         all: false
       }).then(element => actor.clickElement(element, capabilities)).then(
         () => done({ value: true }),
