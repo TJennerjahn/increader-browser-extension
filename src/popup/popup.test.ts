@@ -37,6 +37,11 @@ describe("compact Browser Capture popup", () => {
     expect(getByText(root, "Not connected")).toBeTruthy();
     expect(getByText(root, "Increader Cloud")).toBeTruthy();
     expect(getByText(root, "Connection settings")).toBeTruthy();
+    expect(
+      getByRole<HTMLInputElement>(root, "textbox", {
+        name: "Increader instance origin",
+      }).value,
+    ).toBe(CLOUD_INSTANCE_ORIGIN);
 
     fireEvent.click(
       getByRole(root, "button", { name: "Connect to Increader Cloud" }),
@@ -76,6 +81,7 @@ describe("compact Browser Capture popup", () => {
       expect(getByText(root, "Paired")).toBeTruthy();
       expect(getByText(root, "Home Reader")).toBeTruthy();
     });
+    expect(root.textContent).not.toContain("Browser Capture sends only to");
     fireEvent.click(getByRole(root, "button", { name: "Disconnect" }));
     await vi.waitFor(() => {
       expect(disconnect).toHaveBeenCalledOnce();
@@ -83,7 +89,55 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("keeps self-hosted discovery inside connection settings", async () => {
+  it("saves a self-hosted origin before the main button pairs with it", async () => {
+    const connect = vi.fn().mockResolvedValue({
+      origin: "https://reader.example",
+      displayName: "Home Reader",
+      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
+    });
+    const pairing: Pairing = {
+      accessToken: () => Promise.reject(new Error("not paired")),
+      connect,
+      current: () => Promise.resolve(null),
+      currentOrigin: () => Promise.resolve(null),
+      disconnect: () => Promise.resolve(),
+      discover: () => Promise.reject(new Error("not used")),
+    };
+    const save = vi.fn().mockResolvedValue(undefined);
+    const root = document.createElement("main");
+    mountPopup(root, pairing, undefined, {
+      load: () => Promise.resolve(null),
+      save,
+    });
+    const input = getByRole<HTMLInputElement>(root, "textbox", {
+      name: "Increader instance origin",
+    });
+
+    fireEvent.input(input, { target: { value: "https://reader.example/" } });
+    const form = input.closest("form");
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    fireEvent.submit(form);
+
+    await vi.waitFor(() => {
+      expect(save).toHaveBeenCalledWith("https://reader.example");
+      expect(input.value).toBe("https://reader.example");
+    });
+    expect(connect).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      getByRole(root, "button", { name: "Connect to reader.example" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(connect).toHaveBeenCalledWith("https://reader.example");
+      expect(getByText(root, "Home Reader")).toBeTruthy();
+      expect(getByText(root, "Paired")).toBeTruthy();
+    });
+  });
+
+  it("restores the saved connection origin when the popup reopens", async () => {
     const connect = vi.fn().mockResolvedValue({
       origin: "https://reader.example",
       displayName: "Home Reader",
@@ -99,21 +153,25 @@ describe("compact Browser Capture popup", () => {
       discover: () => Promise.reject(new Error("not used")),
     };
     const root = document.createElement("main");
-    mountPopup(root, pairing);
-    const input = getByRole(root, "textbox", {
-      name: "Self-hosted Increader origin",
+
+    mountPopup(root, pairing, undefined, {
+      load: () => Promise.resolve("https://reader.example"),
+      save: vi.fn(),
     });
 
-    fireEvent.input(input, { target: { value: "https://reader.example/" } });
-    const form = input.closest("form");
-    expect(form).not.toBeNull();
-    if (form === null) return;
-    fireEvent.submit(form);
+    await vi.waitFor(() => {
+      expect(
+        getByRole<HTMLInputElement>(root, "textbox", {
+          name: "Increader instance origin",
+        }).value,
+      ).toBe("https://reader.example");
+    });
+    fireEvent.click(
+      getByRole(root, "button", { name: "Connect to reader.example" }),
+    );
 
     await vi.waitFor(() => {
-      expect(connect).toHaveBeenCalledWith("https://reader.example/");
-      expect(getByText(root, "Home Reader")).toBeTruthy();
-      expect(getByText(root, "Paired")).toBeTruthy();
+      expect(connect).toHaveBeenCalledWith("https://reader.example");
     });
   });
 
@@ -193,9 +251,6 @@ describe("compact Browser Capture popup", () => {
         getByText(root, "https://example.com/article?view=full"),
       ).toBeTruthy();
       expect(getByText(root, "Ready")).toBeTruthy();
-      expect(
-        getByText(root, /title, URL, and document type are read/),
-      ).toBeTruthy();
     });
     expect(lookupCall).toHaveBeenCalledWith(
       "https://reader.example",
@@ -431,8 +486,7 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("opens a completed Bookmark at its persisted job origin after Pairing changes", async () => {
-    const openReader = vi.fn().mockResolvedValue(undefined);
+  it("does not restore the last completed Bookmark after the popup reopens", async () => {
     const captureJob: CaptureJobClient = {
       current: () =>
         Promise.resolve({
@@ -459,20 +513,19 @@ describe("compact Browser Capture popup", () => {
       }),
       captureJob,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
-      openReader,
+      openReader: vi.fn(),
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
+      expect(getByText(root, "Ready")).toBeTruthy();
     });
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
-
-    expect(openReader).toHaveBeenCalledWith(
-      "https://original-reader.example/bookmarks/84",
-    );
+    expect(root.textContent).not.toContain("Extracted article");
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
   });
 
-  it("restores a completed job even when the newly active tab is unsupported", async () => {
+  it("shows the active unsupported page instead of a previous completion", async () => {
     const inspected = deferred<ActivePageInspection>();
     const captureJob: CaptureJobClient = {
       current: () =>
@@ -500,19 +553,18 @@ describe("compact Browser Capture popup", () => {
       lookup: { lookup: vi.fn() },
       openReader: vi.fn(),
     });
-    await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-    });
-
     inspected.resolve({
       kind: "unsupported",
       reason: "Browser-protected pages cannot be imported.",
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-      expect(getByText(root, "Extracted article")).toBeTruthy();
+      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(
+        getByText(root, "Browser-protected pages cannot be imported."),
+      ).toBeTruthy();
     });
+    expect(root.textContent).not.toContain("Extracted article");
   });
 
   it("offers explicit Retry and Discard and confirms replacement before a new Import", async () => {

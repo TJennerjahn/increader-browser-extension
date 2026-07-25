@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createBrowserIdentityFlow,
+  createConnectionOriginPreferenceStore,
   createCredentialStore,
   createInstallationIdentity,
   createPairingOperationStore,
@@ -67,6 +68,28 @@ describe.each([
       renewalCredential: "bcr_local_only",
     });
     expect(set).toHaveBeenCalled();
+  });
+
+  it("persists the configured connection origin independently", async () => {
+    const values: Record<string, unknown> = {};
+    const storage = {
+      get: vi.fn(
+        (key: string, done: (result: Record<string, unknown>) => void) => {
+          done({ [key]: values[key] });
+        },
+      ),
+      set: vi.fn((next: Record<string, unknown>, done: () => void) => {
+        Object.assign(values, next);
+        done();
+      }),
+      remove: vi.fn(),
+    } as unknown as chrome.storage.StorageArea;
+    const preference = createConnectionOriginPreferenceStore(storage);
+
+    await expect(preference.load()).resolves.toBeNull();
+    await preference.save("https://reader.example");
+
+    await expect(preference.load()).resolves.toBe("https://reader.example");
   });
 
   it("uses the browser identity callback without exposing a web session", async () => {

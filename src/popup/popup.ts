@@ -10,8 +10,14 @@ import type {
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
 import type { CaptureJobClient } from "../browser/capture-job-runtime";
 import type { CaptureJobState } from "../capture-job/capture-job";
+import { normalizeInstanceOrigin } from "../pairing/instance-origin";
 
 export const CLOUD_INSTANCE_ORIGIN = "https://app.increader.com";
+
+export interface ConnectionOriginPreference {
+  load(): Promise<string | null>;
+  save(origin: string): Promise<void>;
+}
 
 export interface PopupPageDependencies {
   activePage: ActivePageInspector;
@@ -25,6 +31,7 @@ export function mountPopup(
   root: HTMLElement,
   pairing: Pairing & Partial<Pick<PairingClient, "observe" | "operation">>,
   pageDependencies?: PopupPageDependencies,
+  connectionOriginPreference?: ConnectionOriginPreference,
 ): () => void {
   root.innerHTML = `
     <section class="popup-shell" aria-labelledby="popup-title">
@@ -177,7 +184,7 @@ export function mountPopup(
         </summary>
         <form class="settings-content" data-self-hosted-form>
           <label class="label" for="self-hosted-origin">
-            <span class="label-text">Self-hosted Increader origin</span>
+            <span class="label-text">Increader instance origin</span>
           </label>
           <input
             class="input input-bordered"
@@ -187,29 +194,17 @@ export function mountPopup(
             inputmode="url"
             autocomplete="url"
             placeholder="https://reader.example"
+            value="https://app.increader.com"
             required
           />
           <button
             class="secondary-action btn btn-outline btn-block"
             type="submit"
           >
-            Use self-hosted instance
+            Save connection
           </button>
         </form>
       </details>
-
-      <div class="privacy-note">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"></path>
-          <path d="m9 12 2 2 4-4"></path>
-        </svg>
-        <p>
-          Before Import, only the active page title, URL, and document type are
-          read. Only the URL is sent to your paired Increader for Bookmark Lookup;
-          page content is not read or sent. Import reads the rendered page and
-          sends it only to that paired Increader instance.
-        </p>
-      </div>
     </section>
   `;
 
@@ -265,6 +260,8 @@ export function mountPopup(
     "[data-discard]",
   ) as HTMLButtonElement;
   let disposed = false;
+  let configuredOrigin = CLOUD_INSTANCE_ORIGIN;
+  let connectionInteractionGeneration = 0;
   let pairedDestination: {
     displayName: string;
     origin: string;
@@ -280,6 +277,19 @@ export function mountPopup(
     null;
   const isDisposed = (): boolean => disposed;
 
+  const configuredDestinationLabel = (): string =>
+    configuredOrigin === CLOUD_INSTANCE_ORIGIN
+      ? "Increader Cloud"
+      : new URL(configuredOrigin).host;
+
+  const renderConfiguredOrigin = (): void => {
+    originInput.value = configuredOrigin;
+    cloudButton.textContent =
+      configuredOrigin === CLOUD_INSTANCE_ORIGIN
+        ? "Connect to Increader Cloud"
+        : `Connect to ${configuredDestinationLabel()}`;
+  };
+
   const showDisconnected = (message?: string): void => {
     connectionCard.dataset.state = "disconnected";
     pairedDestination = null;
@@ -289,7 +299,8 @@ export function mountPopup(
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
-    destination.textContent = "Increader Cloud";
+    renderConfiguredOrigin();
+    destination.textContent = configuredDestinationLabel();
     status.textContent = "Not connected";
     detail.textContent =
       message ?? "Connect this browser before importing the current page.";
@@ -304,10 +315,17 @@ export function mountPopup(
   }): void => {
     connectionCard.dataset.state = "paired";
     pairedDestination = paired;
-    destination.textContent = paired.displayName;
+    renderConfiguredOrigin();
+    const configuredPairing = paired.origin === configuredOrigin;
+    destination.textContent = configuredPairing
+      ? paired.displayName
+      : configuredDestinationLabel();
     status.textContent = "Paired";
-    detail.textContent = `Browser Capture sends only to ${paired.origin}.`;
-    cloudButton.hidden = true;
+    detail.textContent = configuredPairing
+      ? ""
+      : `Currently paired with ${paired.displayName}. Connect to replace it.`;
+    cloudButton.hidden = configuredPairing;
+    cloudButton.disabled = false;
     disconnectButton.hidden = false;
     if (pageDependencies !== undefined) {
       void refreshPage();
@@ -333,7 +351,13 @@ export function mountPopup(
       return;
     }
     if (operation.phase === "failed") {
-      showDisconnected(operation.message);
+      if (pairedDestination === null) {
+        showDisconnected(operation.message);
+      } else {
+        showPaired(pairedDestination);
+        status.textContent = "Could not connect";
+        detail.textContent = operation.message;
+      }
     }
   };
 
@@ -443,25 +467,70 @@ export function mountPopup(
     try {
       const result = await pairing.connect(origin);
       if (isDisposed()) return;
+      configuredOrigin = result.origin;
+      void connectionOriginPreference?.save(result.origin).catch(() => undefined);
       showPaired(result);
     } catch (error) {
       if (disposed) return;
-      showDisconnected(
+      const message =
         error instanceof Error
           ? error.message
-          : "Could not connect to a compatible Increader instance.",
-      );
+          : "Could not connect to a compatible Increader instance.";
+      if (pairedDestination === null) {
+        showDisconnected(message);
+      } else {
+        showPaired(pairedDestination);
+        status.textContent = "Could not connect";
+        detail.textContent = message;
+      }
     }
   };
 
   const onCloudConnect = (): void => {
-    void connect(CLOUD_INSTANCE_ORIGIN);
+    connectionInteractionGeneration += 1;
+    void connect(configuredOrigin);
   };
   const onSelfHostedSubmit = (event: SubmitEvent): void => {
     event.preventDefault();
-    void connect(originInput.value);
+    const interactionGeneration = ++connectionInteractionGeneration;
+    let normalized: string;
+    try {
+      normalized = normalizeInstanceOrigin(originInput.value);
+    } catch (error) {
+      status.textContent = "Invalid connection";
+      detail.textContent =
+        error instanceof Error
+          ? error.message
+          : "Enter a valid Increader instance origin.";
+      return;
+    }
+    void (async () => {
+      try {
+        await connectionOriginPreference?.save(normalized);
+        if (
+          isDisposed() ||
+          interactionGeneration !== connectionInteractionGeneration
+        ) {
+          return;
+        }
+        configuredOrigin = normalized;
+        if (pairedDestination === null) {
+          showDisconnected(
+            "Connection updated. Choose Connect to pair this browser.",
+          );
+        } else {
+          showPaired(pairedDestination);
+        }
+        selfHostedForm.closest("details")?.removeAttribute("open");
+      } catch {
+        if (isDisposed()) return;
+        status.textContent = "Could not save connection";
+        detail.textContent = "Try saving the Increader instance again.";
+      }
+    })();
   };
   const onDisconnect = (): void => {
+    connectionInteractionGeneration += 1;
     connectionCard.dataset.state = "connecting";
     disconnectButton.disabled = true;
     status.textContent = "Disconnecting…";
@@ -696,20 +765,45 @@ export function mountPopup(
   const stopObservingPairing = pairing.observe?.(renderPairingOperation);
   void pageDependencies?.captureJob
     ?.current()
-    .then(renderJobState)
-    .catch(() => undefined);
-
-  void pairing.current().then((current) => {
-    if (!disposed && current !== null) {
-      showPaired(current);
-    }
-  });
-  void pairing
-    .operation?.()
-    .then((operation) => {
-      if (!disposed) renderPairingOperation(operation);
+    .then((state) => {
+      if (state.phase !== "completed") renderJobState(state);
     })
     .catch(() => undefined);
+
+  const initialConnectionGeneration = connectionInteractionGeneration;
+  const initializeConnection = Promise.all([
+    pairing.current(),
+    connectionOriginPreference?.load().catch(() => null) ??
+      Promise.resolve(null),
+  ])
+    .then(([current, preferredOrigin]) => {
+      if (
+        disposed ||
+        initialConnectionGeneration !== connectionInteractionGeneration
+      ) {
+        return;
+      }
+      const candidate = preferredOrigin ?? current?.origin ?? CLOUD_INSTANCE_ORIGIN;
+      try {
+        configuredOrigin = normalizeInstanceOrigin(candidate);
+      } catch {
+        configuredOrigin = current?.origin ?? CLOUD_INSTANCE_ORIGIN;
+      }
+      if (current === null) {
+        showDisconnected();
+      } else {
+        showPaired(current);
+      }
+    })
+    .catch(() => undefined);
+  void initializeConnection.then(() =>
+    pairing
+      .operation?.()
+      .then((operation) => {
+        if (!disposed) renderPairingOperation(operation);
+      })
+      .catch(() => undefined),
+  );
 
   return () => {
     disposed = true;

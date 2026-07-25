@@ -258,8 +258,7 @@ h1 {
 }
 
 .section-icon svg,
-.settings-summary svg,
-.privacy-note > svg {
+.settings-summary svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -324,8 +323,13 @@ h1 {
   line-height: 1.45;
 }
 
+.connection-detail:empty {
+  display: none;
+}
+
 .connection-actions {
   display: grid;
+  gap: 6px;
 }
 
 .page-icon {
@@ -627,28 +631,6 @@ h1 {
 
 .input::placeholder {
   color: oklch(var(--bc) / 0.38);
-}
-
-.privacy-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 2px 5px 0;
-  color: oklch(var(--bc) / 0.5);
-}
-
-.privacy-note > svg {
-  width: 15px;
-  height: 15px;
-  flex: none;
-  margin-top: 1px;
-  color: oklch(var(--su));
-}
-
-.privacy-note p {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.42;
 }
 
 @keyframes button-pop {
