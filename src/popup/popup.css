@@ -121,7 +121,6 @@ svg {
   height: 36px;
   flex: none;
   color: #4f46e5;
-  filter: drop-shadow(0 4px 7px oklch(var(--p) / 0.2));
 }
 
 .brand-mark svg {
