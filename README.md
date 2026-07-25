@@ -4,15 +4,17 @@ The public Chrome and Firefox Browser Capture extension for
 [Increader](https://app.increader.com). One TypeScript/WebExtensions source tree
 produces Manifest V3 builds for both browsers.
 
-Browser Capture is an explicit import workflow. Opening the compact utility does
-not read or send the active page. After the complete pairing and capture slices
-land, pressing Import will snapshot the authorized top-level live DOM and
-selected images, send one bounded Capture Package only to the paired Increader
-instance, and enter Increader's normal Bookmark Import Flow.
+Browser Capture is an explicit import workflow. After Pairing, opening the
+compact utility reads only the active top-level page's title, fragment-free
+HTTP(S) URL, and document type. It sends only that URL to the paired Increader
+for an exact owned Bookmark Lookup. Pressing Import is the separate
+authorization that will snapshot the live DOM and selected images, send one
+bounded Capture Package only to that instance, and enter Increader's normal
+Bookmark Import Flow.
 
-The current implementation includes destination discovery and explicit
-Browser Capture Pairing. It deliberately does not yet inspect or capture page
-content.
+The current implementation includes destination discovery, explicit Browser
+Capture Pairing, active-page inspection, and exact Bookmark Lookup. It does not
+serialize or transfer DOM or asset content before Import.
 
 ## Browser support
 
@@ -84,10 +86,11 @@ and compatible/incompatible fixtures under [`protocol/`](protocol/README.md).
 No build fetches the other repository or a moving schema.
 
 The deep Pairing interface owns destination discovery and credential
-lifecycle. The deep Capture Job interface will own active-tab inspection,
-capture, local staging, transfer, retry, and discard. The popup depends on those
-interfaces rather than browser internals. Increader remains the sole owner of
-Article Extraction and normal Bookmark behavior.
+lifecycle. The active-page interface owns the minimal top-frame inspection. The
+deep Capture Job interface will own capture, local staging, transfer, retry,
+and discard. The popup depends on those interfaces rather than browser
+internals. Increader remains the sole owner of Article Extraction and normal
+Bookmark behavior.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 [privacy](docs/privacy.md), and the [permission rationale](docs/permissions.md).

@@ -24,3 +24,9 @@ Pairing distinguishes Account Identity operations from credential operations:
 approval and account-managed revocation use the existing signed-in context;
 exchange, renewal, and installation disconnect explicitly omit cookies and use
 PKCE or the rotating opaque renewal credential.
+
+Browser Capture Bookmark Lookup accepts only the short-lived capture-scoped
+access token and compares one fragment-free Capture Source URL exactly. It
+returns only `exists` plus an owned Bookmark identifier/title when present; it
+is not a library search or URL-equivalence API. The source URL travels in a
+minimal POST body so it does not enter ordinary request targets or access logs.

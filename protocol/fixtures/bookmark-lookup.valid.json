@@ -1,0 +1,10 @@
+{
+  "existing": {
+    "exists": true,
+    "bookmarkId": 42,
+    "title": "Saved Article"
+  },
+  "missing": {
+    "exists": false
+  }
+}

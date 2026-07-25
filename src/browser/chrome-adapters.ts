@@ -3,7 +3,7 @@ import type {
   CredentialStore,
   DestinationStore,
   InstallationIdentity,
-  RuntimeOriginPermissions
+  RuntimeOriginPermissions,
 } from "../pairing/pairing";
 
 const DESTINATION_STORAGE_KEY = "browserCaptureDestinationOrigin";
@@ -11,7 +11,7 @@ const CREDENTIAL_STORAGE_KEY = "browserCapturePairingCredential";
 const INSTALLATION_STORAGE_KEY = "browserCaptureInstallationId";
 
 export function createRuntimeOriginPermissions(
-  api: typeof chrome.permissions = chrome.permissions
+  api: typeof chrome.permissions = chrome.permissions,
 ): RuntimeOriginPermissions {
   return {
     contains: (pattern) =>
@@ -26,20 +26,18 @@ export function createRuntimeOriginPermissions(
       await callbackResult<boolean>((done) => {
         api.remove({ origins: [pattern] }, done);
       });
-    }
+    },
   };
 }
 
 export function createDestinationStore(
-  storage: chrome.storage.StorageArea = chrome.storage.local
+  storage: chrome.storage.StorageArea = chrome.storage.local,
 ): DestinationStore {
   return {
     async load() {
-      const values = await callbackResult<Record<string, unknown>>((done) =>
-        {
-          storage.get(DESTINATION_STORAGE_KEY, done);
-        }
-      );
+      const values = await callbackResult<Record<string, unknown>>((done) => {
+        storage.get(DESTINATION_STORAGE_KEY, done);
+      });
       const origin = values[DESTINATION_STORAGE_KEY];
       return typeof origin === "string" ? origin : null;
     },
@@ -52,12 +50,12 @@ export function createDestinationStore(
       await callbackVoid((done) => {
         storage.remove(DESTINATION_STORAGE_KEY, done);
       });
-    }
+    },
   };
 }
 
 export function createCredentialStore(
-  storage: chrome.storage.StorageArea = chrome.storage.local
+  storage: chrome.storage.StorageArea = chrome.storage.local,
 ): CredentialStore {
   return {
     async load() {
@@ -71,7 +69,7 @@ export function createCredentialStore(
           "installationId",
           "origin",
           "pairingId",
-          "renewalCredential"
+          "renewalCredential",
         ])
       ) {
         return null;
@@ -81,7 +79,7 @@ export function createCredentialStore(
         installationId: candidate.installationId as string,
         origin: candidate.origin as string,
         pairingId: candidate.pairingId as string,
-        renewalCredential: candidate.renewalCredential as string
+        renewalCredential: candidate.renewalCredential as string,
       };
     },
     async save(value) {
@@ -89,12 +87,12 @@ export function createCredentialStore(
     },
     async clear() {
       await storageRemove(storage, CREDENTIAL_STORAGE_KEY);
-    }
+    },
   };
 }
 
 export function createInstallationIdentity(
-  storage: chrome.storage.StorageArea = chrome.storage.local
+  storage: chrome.storage.StorageArea = chrome.storage.local,
 ): InstallationIdentity {
   return {
     name: "Increader Browser Capture",
@@ -107,12 +105,12 @@ export function createInstallationIdentity(
       const created = globalThis.crypto.randomUUID();
       await storageSet(storage, { [INSTALLATION_STORAGE_KEY]: created });
       return created;
-    }
+    },
   };
 }
 
 export function createBrowserIdentityFlow(
-  api: typeof chrome.identity = chrome.identity
+  api: typeof chrome.identity = chrome.identity,
 ): BrowserIdentityFlow {
   return {
     callbackUri: () => api.getRedirectURL("browser-capture"),
@@ -121,17 +119,27 @@ export function createBrowserIdentityFlow(
         api.launchWebAuthFlow(
           {
             interactive: true,
-            url: approvalUrl
+            url: approvalUrl,
           },
-          done
+          done,
         );
-      })
+      }),
+  };
+}
+
+export function createTabOpener(
+  api: typeof chrome.tabs = chrome.tabs,
+): (url: string) => Promise<void> {
+  return async (url) => {
+    await callbackResult<chrome.tabs.Tab>((done) => {
+      api.create({ active: true, url }, done);
+    });
   };
 }
 
 function storageGet(
   storage: chrome.storage.StorageArea,
-  key: string
+  key: string,
 ): Promise<Record<string, unknown>> {
   return callbackResult((done) => {
     storage.get(key, done);
@@ -140,7 +148,7 @@ function storageGet(
 
 function storageSet(
   storage: chrome.storage.StorageArea,
-  values: Record<string, unknown>
+  values: Record<string, unknown>,
 ): Promise<void> {
   return callbackVoid((done) => {
     storage.set(values, done);
@@ -149,7 +157,7 @@ function storageSet(
 
 function storageRemove(
   storage: chrome.storage.StorageArea,
-  key: string
+  key: string,
 ): Promise<void> {
   return callbackVoid((done) => {
     storage.remove(key, done);
@@ -158,14 +166,14 @@ function storageRemove(
 
 function hasStrings<T extends object>(
   candidate: T,
-  keys: string[]
+  keys: string[],
 ): candidate is T & Record<string, string> {
   const values = candidate as Record<string, unknown>;
   return keys.every((key) => typeof values[key] === "string");
 }
 
 function callbackResult<T>(
-  invoke: (done: (value: T) => void) => void
+  invoke: (done: (value: T) => void) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     invoke((value) => {

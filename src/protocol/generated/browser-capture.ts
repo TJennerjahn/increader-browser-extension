@@ -113,6 +113,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/browser-capture/bookmarks/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Find an owned Bookmark at the exact Capture Source URL
+         * @description Performs one User-scoped exact-string URL lookup through the calling
+         *     Browser Capture Pairing. This is not library search and does not apply
+         *     canonical, redirect, tracking-parameter, or other URL equivalence.
+         */
+        post: operations["lookupBrowserCaptureBookmark"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/browser-capture/pairings": {
         parameters: {
             query?: never;
@@ -213,6 +235,20 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             lastRenewedAt: string;
+        };
+        BrowserCaptureBookmarkLookup: {
+            exists: boolean;
+            /** @description Present only for an owned Bookmark at the exact URL. */
+            bookmarkId?: number;
+            /** @description Present only when the existing owned Bookmark has a title. */
+            title?: string;
+        };
+        BrowserCaptureBookmarkLookupRequest: {
+            /**
+             * Format: uri
+             * @description Fragment-free top-level HTTP(S) Capture Source URL.
+             */
+            sourceUrl: string;
         };
         BrowserCaptureDiscovery: {
             /**
@@ -419,6 +455,48 @@ export interface operations {
                 content?: never;
             };
             /** @description Invalid or incorrectly bound credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    lookupBrowserCaptureBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Minimal request body keeps the publisher URL out of request targets
+         *     and ordinary proxy/access logs.
+         */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserCaptureBookmarkLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description Minimal owned Bookmark reference, when one exists */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCaptureBookmarkLookup"];
+                };
+            };
+            /** @description Invalid or fragment-bearing Capture Source URL */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired Browser Capture Access Token */
             401: {
                 headers: {
                     [name: string]: unknown;

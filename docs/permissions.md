@@ -5,8 +5,10 @@ The production Chrome and Firefox manifests request the same narrow authority.
 ## Required permissions
 
 - `activeTab` — temporary authority for the top-level page only after the User
-  invokes Browser Capture.
-- `scripting` — inject the bounded capture code into that authorized tab.
+  invokes the Browser Capture utility.
+- `scripting` — inject bounded top-frame inspection code that returns only
+  title, URL, and document type before Import; later Capture code uses the same
+  explicit active-tab authority.
 - `storage` — retain local Pairing metadata and small Capture Job state. Secret
   or captured content is never synchronized.
 - `identity` — open and return from the explicit Increader PKCE approval flow
@@ -14,9 +16,9 @@ The production Chrome and Firefox manifests request the same narrow authority.
   single-use; Account Identity cookies remain in the instance-hosted page.
 - `notifications` — show one action-required import failure notification.
 
-The pairing slice exercises `storage` and `identity`. Active-page capture will
-exercise `activeTab`, `scripting`, and `notifications`; they are fixed
-production permissions asserted in both packaged manifests.
+Pairing exercises `storage` and `identity`. Active-page inspection exercises
+`activeTab` and `scripting`; import failures will exercise `notifications`.
+They are fixed production permissions asserted in both packaged manifests.
 
 ## Optional host access
 

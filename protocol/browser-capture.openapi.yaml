@@ -124,6 +124,36 @@ paths:
           description: Pairing revoked
         "401":
           description: Invalid or incorrectly bound credential
+  /api/browser-capture/bookmarks/lookup:
+    post:
+      operationId: lookupBrowserCaptureBookmark
+      summary: Find an owned Bookmark at the exact Capture Source URL
+      description: |
+        Performs one User-scoped exact-string URL lookup through the calling
+        Browser Capture Pairing. This is not library search and does not apply
+        canonical, redirect, tracking-parameter, or other URL equivalence.
+      security:
+        - browserCaptureAccess: []
+      requestBody:
+        required: true
+        description: |
+          Minimal request body keeps the publisher URL out of request targets
+          and ordinary proxy/access logs.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserCaptureBookmarkLookupRequest"
+      responses:
+        "200":
+          description: Minimal owned Bookmark reference, when one exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureBookmarkLookup"
+        "400":
+          description: Invalid or fragment-bearing Capture Source URL
+        "401":
+          description: Invalid or expired Browser Capture Access Token
   /api/browser-capture/pairings:
     get:
       operationId: listBrowserCapturePairings
@@ -172,6 +202,13 @@ components:
         Existing Cloud or self-hosted Account Identity authentication. The
         approval and account-management operations also use the build
         variant's normal same-origin web session.
+    browserCaptureAccess:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-bca
+      description: |
+        Short-lived Browser Capture Access Token. It is resolved only by
+        Browser Capture operations and grants no general Increader API access.
   schemas:
     BrowserCapturePairingApprovalRequest:
       type: object
@@ -327,6 +364,31 @@ components:
         lastRenewedAt:
           type: string
           format: date-time
+    BrowserCaptureBookmarkLookup:
+      type: object
+      additionalProperties: false
+      required:
+        - exists
+      properties:
+        exists:
+          type: boolean
+        bookmarkId:
+          type: integer
+          description: Present only for an owned Bookmark at the exact URL.
+        title:
+          type: string
+          description: Present only when the existing owned Bookmark has a title.
+    BrowserCaptureBookmarkLookupRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - sourceUrl
+      properties:
+        sourceUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: Fragment-free top-level HTTP(S) Capture Source URL.
     BrowserCaptureDiscovery:
       type: object
       required:
