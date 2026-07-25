@@ -34,7 +34,7 @@ export function mountPopup(
   connectionOriginPreference?: ConnectionOriginPreference,
 ): () => void {
   root.innerHTML = `
-    <section class="popup-shell" aria-labelledby="popup-title">
+    <section class="popup-shell" aria-label="Increader Browser Capture">
       <header class="popup-header">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
@@ -51,7 +51,31 @@ export function mountPopup(
             <p>Browser Capture</p>
           </div>
         </div>
+        <button
+          class="header-action btn btn-ghost"
+          type="button"
+          data-view-toggle
+          aria-label="Back to import"
+          hidden
+        >
+          <svg data-back-icon viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+          <svg data-settings-icon viewBox="0 0 24 24" aria-hidden="true" hidden>
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.7.6 1 .3.25.68.4 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"></path>
+          </svg>
+        </button>
       </header>
+
+      <section
+        class="popup-view settings-view"
+        data-settings-view
+      >
+        <div class="view-heading">
+          <p class="eyebrow">Settings</p>
+          <h2>Connection settings</h2>
+        </div>
 
       <section
         class="connection-card card card-surface"
@@ -95,6 +119,34 @@ export function mountPopup(
         </div>
       </section>
 
+        <form
+          class="settings-form card card-surface"
+          data-self-hosted-form
+        >
+          <label class="label" for="self-hosted-origin">
+            <span class="label-text">Increader instance origin</span>
+          </label>
+          <input
+            class="input input-bordered"
+            id="self-hosted-origin"
+            name="origin"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="https://reader.example"
+            value="https://app.increader.com"
+            required
+          />
+          <button
+            class="secondary-action btn btn-outline btn-block"
+            type="submit"
+          >
+            Save connection
+          </button>
+        </form>
+      </section>
+
+      <section class="popup-view main-view" data-main-view hidden>
       <section
         class="page-card card card-surface"
         data-page-card
@@ -167,45 +219,24 @@ export function mountPopup(
         </div>
       </section>
 
-      <details class="settings collapse">
-        <summary class="settings-summary">
-          <span class="settings-label">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
-              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.7.6 1 .3.25.68.4 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"></path>
-            </svg>
-            Connection settings
-          </span>
-          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m9 18 6-6-6-6"></path>
-          </svg>
-        </summary>
-        <form class="settings-content" data-self-hosted-form>
-          <label class="label" for="self-hosted-origin">
-            <span class="label-text">Increader instance origin</span>
-          </label>
-          <input
-            class="input input-bordered"
-            id="self-hosted-origin"
-            name="origin"
-            type="url"
-            inputmode="url"
-            autocomplete="url"
-            placeholder="https://reader.example"
-            value="https://app.increader.com"
-            required
-          />
-          <button
-            class="secondary-action btn btn-outline btn-block"
-            type="submit"
-          >
-            Save connection
-          </button>
-        </form>
-      </details>
+      </section>
     </section>
   `;
 
+  const mainView = requiredElement(root, "[data-main-view]") as HTMLElement;
+  const settingsView = requiredElement(
+    root,
+    "[data-settings-view]",
+  ) as HTMLElement;
+  const viewToggle = requiredElement(
+    root,
+    "[data-view-toggle]",
+  ) as HTMLButtonElement;
+  const backIcon = requiredElement(root, "[data-back-icon]") as SVGElement;
+  const settingsIcon = requiredElement(
+    root,
+    "[data-settings-icon]",
+  ) as SVGElement;
   const cloudButton = requiredElement(
     root,
     "[data-cloud-connect]",
@@ -271,6 +302,24 @@ export function mountPopup(
     null;
   const isDisposed = (): boolean => disposed;
 
+  const showSettingsView = (): void => {
+    mainView.hidden = true;
+    settingsView.hidden = false;
+    backIcon.removeAttribute("hidden");
+    settingsIcon.setAttribute("hidden", "");
+    viewToggle.ariaLabel = "Back to import";
+    viewToggle.hidden = pairedDestination === null;
+  };
+
+  const showMainView = (): void => {
+    settingsView.hidden = true;
+    mainView.hidden = false;
+    backIcon.setAttribute("hidden", "");
+    settingsIcon.removeAttribute("hidden");
+    viewToggle.ariaLabel = "Open connection settings";
+    viewToggle.hidden = false;
+  };
+
   const renderConfiguredOrigin = (): void => {
     originInput.value = configuredOrigin;
   };
@@ -291,6 +340,7 @@ export function mountPopup(
     cloudButton.hidden = false;
     cloudButton.disabled = false;
     disconnectButton.hidden = true;
+    showSettingsView();
   };
 
   const showPaired = (paired: {
@@ -451,6 +501,7 @@ export function mountPopup(
       configuredOrigin = result.origin;
       void connectionOriginPreference?.save(result.origin).catch(() => undefined);
       showPaired(result);
+      showMainView();
     } catch (error) {
       if (disposed) return;
       const message =
@@ -502,7 +553,6 @@ export function mountPopup(
         } else {
           showPaired(pairedDestination);
         }
-        selfHostedForm.closest("details")?.removeAttribute("open");
       } catch {
         if (isDisposed()) return;
         status.textContent = "Could not save connection";
@@ -528,6 +578,13 @@ export function mountPopup(
           "Increader could not revoke this installation. Try again.";
         disconnectButton.disabled = false;
       });
+  };
+  const onViewToggle = (): void => {
+    if (settingsView.hidden) {
+      showSettingsView();
+    } else {
+      showMainView();
+    }
   };
   const onImport = (): void => {
     if (
@@ -729,6 +786,7 @@ export function mountPopup(
   }
 
   cloudButton.addEventListener("click", onCloudConnect);
+  viewToggle.addEventListener("click", onViewToggle);
   selfHostedForm.addEventListener("submit", onSelfHostedSubmit);
   disconnectButton.addEventListener("click", onDisconnect);
   importButton.addEventListener("click", onImport);
@@ -774,6 +832,7 @@ export function mountPopup(
         showDisconnected();
       } else {
         showPaired(current);
+        showMainView();
       }
     })
     .catch(() => undefined);
@@ -792,6 +851,7 @@ export function mountPopup(
       globalThis.clearTimeout(retryRevealTimeout);
     }
     cloudButton.removeEventListener("click", onCloudConnect);
+    viewToggle.removeEventListener("click", onViewToggle);
     selfHostedForm.removeEventListener("submit", onSelfHostedSubmit);
     disconnectButton.removeEventListener("click", onDisconnect);
     importButton.removeEventListener("click", onImport);

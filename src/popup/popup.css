@@ -109,6 +109,25 @@ svg {
   padding: 0 2px 4px;
 }
 
+.btn.header-action {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  color: oklch(var(--bc) / 0.68);
+}
+
+.header-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .brand {
   display: flex;
   min-width: 0;
@@ -156,6 +175,24 @@ h1 {
   line-height: 1.2;
 }
 
+.popup-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.view-heading {
+  padding: 3px 2px 1px;
+}
+
+.view-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
 /* Ported from Card, CardBody, and the shared card-surface treatment. */
 .card {
   position: relative;
@@ -183,7 +220,8 @@ h1 {
 }
 
 .connection-card,
-.page-card {
+.page-card,
+.settings-form {
   overflow: hidden;
   border: 1px solid oklch(var(--b3));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
@@ -191,7 +229,8 @@ h1 {
 
 @media (prefers-color-scheme: dark) {
   .connection-card,
-  .page-card {
+  .page-card,
+  .settings-form {
     box-shadow:
       0 0 0 1px rgb(255 255 255 / 0.06),
       0 10px 30px rgb(0 0 0 / 0.35),
@@ -219,8 +258,7 @@ h1 {
   background: oklch(var(--p) / 0.09);
 }
 
-.section-icon svg,
-.settings-summary svg {
+.section-icon svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -475,72 +513,11 @@ h1 {
   font-size: 0.875rem;
 }
 
-/* Ported from the app Collapse and Input compositions. */
-.settings {
-  overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: var(--rounded-box);
-  background: oklch(var(--b2) / 0.58);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease;
-}
-
-.settings[open] {
-  border-color: oklch(var(--b3));
-  background: oklch(var(--b2) / 0.76);
-}
-
-.settings-summary {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
-  border-radius: inherit;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
-  color: oklch(var(--bc) / 0.72);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  user-select: none;
-}
-
-.settings-summary::-webkit-details-marker {
-  display: none;
-}
-
-.settings-summary:focus-visible {
-  outline-color: oklch(var(--p));
-}
-
-.settings-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-summary svg {
-  width: 15px;
-  height: 15px;
-}
-
-.settings-summary .chevron {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s ease;
-}
-
-.settings[open] .chevron {
-  transform: rotate(90deg);
-}
-
-.settings-content {
+/* Ported from the app Input composition. */
+.settings-form {
   display: grid;
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 12px;
 }
 
 .label {

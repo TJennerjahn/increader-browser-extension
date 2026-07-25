@@ -41,6 +41,15 @@ describe("compact Browser Capture popup", () => {
         name: "Increader instance origin",
       }).value,
     ).toBe(CLOUD_INSTANCE_ORIGIN);
+    expect(
+      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
+    ).toBe(false);
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
+      true,
+    );
 
     fireEvent.click(
       getByRole(root, "button", { name: "Connect to Increader" }),
@@ -48,6 +57,9 @@ describe("compact Browser Capture popup", () => {
     await vi.waitFor(() => {
       expect(connect).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
       expect(getByText(root, "Paired")).toBeTruthy();
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
     });
   });
 
@@ -78,19 +90,44 @@ describe("compact Browser Capture popup", () => {
 
     await vi.waitFor(() => {
       expect(getByText(root, "Paired")).toBeTruthy();
+      expect(
+        getByRole(root, "button", { name: "Open connection settings" }),
+      ).toBeTruthy();
     });
+    const settingsView = root.querySelector<HTMLElement>(
+      "[data-settings-view]",
+    );
+    const mainView = root.querySelector<HTMLElement>("[data-main-view]");
+    const connectionCard = root.querySelector("[data-connection-card]");
+    const pageCard = root.querySelector("[data-page-card]");
+    expect(settingsView?.contains(connectionCard)).toBe(true);
+    expect(mainView?.contains(pageCard)).toBe(true);
+    expect(settingsView?.hidden).toBe(true);
+    expect(mainView?.hidden).toBe(false);
+    fireEvent.click(
+      getByRole(root, "button", { name: "Open connection settings" }),
+    );
+    expect(settingsView?.hidden).toBe(false);
+    expect(mainView?.hidden).toBe(true);
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.textContent.trim(),
+    ).toBe("");
     expect(root.querySelector("[data-destination]")).toBeNull();
     expect(root.textContent).not.toContain("Browser Capture sends only to");
     expect(root.querySelector(".status-dot")).toBeNull();
-    const disconnectButton = getByRole(root, "button", {
-      name: "Disconnect",
-    });
-    expect(disconnectButton.closest(".section-heading")).not.toBeNull();
+    const disconnectButton =
+      root.querySelector<HTMLButtonElement>("[data-disconnect]");
+    expect(disconnectButton?.hidden).toBe(false);
+    expect(disconnectButton?.closest(".section-heading")).not.toBeNull();
+    if (disconnectButton === null) return;
     fireEvent.click(disconnectButton);
     await vi.waitFor(() => {
       expect(disconnect).toHaveBeenCalledOnce();
       expect(getByText(root, "Not connected")).toBeTruthy();
     });
+    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
+      true,
+    );
   });
 
   it("saves a self-hosted origin before the main button pairs with it", async () => {
