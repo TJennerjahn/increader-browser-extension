@@ -9,14 +9,14 @@ The production Chrome and Firefox manifests request the same narrow authority.
 - `scripting` — inject the bounded capture code into that authorized tab.
 - `storage` — retain local Pairing metadata and small Capture Job state. Secret
   or captured content is never synchronized.
-- `identity` — return from the explicit Increader PKCE approval flow using the
-  stable packaged extension identity.
+- `identity` — open and return from the explicit Increader PKCE approval flow
+  using the stable packaged extension identity. The returned code is
+  single-use; Account Identity cookies remain in the instance-hosted page.
 - `notifications` — show one action-required import failure notification.
 
-The discovery-only shell does not yet exercise activeTab, scripting, identity,
-or notifications, but they are fixed production permissions required by the
-complete Browser Capture v1 workflow and are asserted in both packaged
-manifests.
+The pairing slice exercises `storage` and `identity`. Active-page capture will
+exercise `activeTab`, `scripting`, and `notifications`; they are fixed
+production permissions asserted in both packaged manifests.
 
 ## Optional host access
 

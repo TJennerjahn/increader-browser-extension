@@ -29,8 +29,301 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BrowserCaptureDiscovery"
+  /api/browser-capture/pairing/approvals:
+    post:
+      operationId: approveBrowserCapturePairing
+      summary: Approve one Browser Extension Installation
+      description: |
+        Uses the instance's existing Account Identity context to display and
+        record explicit User approval. The Browser Extension receives only a
+        five-minute, single-use authorization code.
+      security:
+        - accountIdentity: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserCapturePairingApprovalRequest"
+      responses:
+        "201":
+          description: Single-use approval code bound to the exact request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserCapturePairingApproval"
+        "400":
+          description: Invalid pairing request
+        "401":
+          description: Account Identity authentication is required
+  /api/browser-capture/pairing/exchange:
+    post:
+      operationId: exchangeBrowserCapturePairingCode
+      summary: Establish a pairing with a PKCE-bound approval code
+      description: |
+        This token operation ignores Account Identity cookies. The code,
+        verifier, instance, callback, state, and installation must match the
+        approved request exactly.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserCapturePairingExchange"
+      responses:
+        "200":
+          description: Capture-scoped credentials for the paired installation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserCapturePairingCredentials"
+        "401":
+          description: Invalid, expired, used, or incorrectly bound code
+  /api/browser-capture/pairing/renew:
+    post:
+      operationId: renewBrowserCapturePairing
+      summary: Rotate a pairing's renewal credential on demand
+      description: |
+        This token operation ignores Account Identity cookies. Successful
+        renewal rotates the opaque credential and restarts its 90-day
+        inactivity window.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserCapturePairingRenewal"
+      responses:
+        "200":
+          description: Rotated renewal credential and ten-minute access token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserCapturePairingCredentials"
+        "401":
+          description: Invalid, expired, replayed, or incorrectly bound credential
+  /api/browser-capture/pairing/revoke:
+    post:
+      operationId: disconnectBrowserCapturePairing
+      summary: Revoke the calling Browser Extension Installation
+      description: This token operation ignores Account Identity cookies.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrowserCapturePairingRenewal"
+      responses:
+        "204":
+          description: Pairing revoked
+        "401":
+          description: Invalid or incorrectly bound credential
+  /api/browser-capture/pairings:
+    get:
+      operationId: listBrowserCapturePairings
+      summary: List the current User's paired installations
+      security:
+        - accountIdentity: []
+      responses:
+        "200":
+          description: Active Browser Extension Installations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BrowserCapturePairingSummary"
+    delete:
+      operationId: revokeAllBrowserCapturePairings
+      summary: Revoke all paired installations for the current User
+      security:
+        - accountIdentity: []
+      responses:
+        "204":
+          description: All pairings revoked
+  /api/browser-capture/pairings/{pairingId}:
+    delete:
+      operationId: revokeBrowserCapturePairing
+      summary: Revoke one paired installation owned by the current User
+      security:
+        - accountIdentity: []
+      parameters:
+        - name: pairingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Pairing revoked or already absent
 components:
+  securitySchemes:
+    accountIdentity:
+      type: http
+      scheme: bearer
+      description: |
+        Existing Cloud or self-hosted Account Identity authentication. The
+        approval and account-management operations also use the build
+        variant's normal same-origin web session.
   schemas:
+    BrowserCapturePairingApprovalRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - instanceOrigin
+        - installationId
+        - installationName
+        - callbackUri
+        - state
+        - codeChallenge
+        - codeChallengeMethod
+      properties:
+        instanceOrigin:
+          type: string
+          format: uri
+          maxLength: 2048
+        installationId:
+          type: string
+          format: uuid
+        installationName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        callbackUri:
+          type: string
+          format: uri
+          maxLength: 2048
+        state:
+          type: string
+          pattern: "^[A-Za-z0-9._~-]{32,128}$"
+        codeChallenge:
+          type: string
+          pattern: "^[A-Za-z0-9._~-]{43,128}$"
+        codeChallengeMethod:
+          type: string
+          const: S256
+    BrowserCapturePairingApproval:
+      type: object
+      additionalProperties: false
+      required:
+        - authorizationCode
+        - callbackUri
+        - state
+      properties:
+        authorizationCode:
+          type: string
+          pattern: "^bcc_[A-Za-z0-9_-]+$"
+        callbackUri:
+          type: string
+          format: uri
+        state:
+          type: string
+    BrowserCapturePairingExchange:
+      type: object
+      additionalProperties: false
+      required:
+        - authorizationCode
+        - codeVerifier
+        - instanceOrigin
+        - installationId
+        - callbackUri
+        - state
+      properties:
+        authorizationCode:
+          type: string
+          pattern: "^bcc_[A-Za-z0-9_-]+$"
+        codeVerifier:
+          type: string
+          pattern: "^[A-Za-z0-9._~-]{43,128}$"
+        instanceOrigin:
+          type: string
+          format: uri
+        installationId:
+          type: string
+          format: uuid
+        callbackUri:
+          type: string
+          format: uri
+        state:
+          type: string
+    BrowserCapturePairingRenewal:
+      type: object
+      additionalProperties: false
+      required:
+        - renewalCredential
+        - installationId
+        - instanceOrigin
+      properties:
+        renewalCredential:
+          type: string
+          pattern: "^bcr_[A-Za-z0-9_-]+$"
+        installationId:
+          type: string
+          format: uuid
+        instanceOrigin:
+          type: string
+          format: uri
+    BrowserCapturePairingCredentials:
+      type: object
+      additionalProperties: false
+      required:
+        - tokenType
+        - accessToken
+        - expiresInSeconds
+        - renewalCredential
+        - renewalExpiresInSeconds
+        - pairingId
+      properties:
+        tokenType:
+          type: string
+          const: Bearer
+        accessToken:
+          type: string
+          pattern: "^bca_[A-Za-z0-9_-]+$"
+        expiresInSeconds:
+          type: integer
+          const: 600
+        renewalCredential:
+          type: string
+          pattern: "^bcr_[A-Za-z0-9_-]+$"
+        renewalExpiresInSeconds:
+          type: integer
+          const: 7776000
+        pairingId:
+          type: string
+          format: uuid
+    BrowserCapturePairingSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - installationId
+        - installationName
+        - instanceOrigin
+        - createdAt
+        - lastRenewedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        installationId:
+          type: string
+          format: uuid
+        installationName:
+          type: string
+        instanceOrigin:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        lastRenewedAt:
+          type: string
+          format: date-time
     BrowserCaptureDiscovery:
       type: object
       required:

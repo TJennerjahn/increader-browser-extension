@@ -26,10 +26,193 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/browser-capture/pairing/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve one Browser Extension Installation
+         * @description Uses the instance's existing Account Identity context to display and
+         *     record explicit User approval. The Browser Extension receives only a
+         *     five-minute, single-use authorization code.
+         */
+        post: operations["approveBrowserCapturePairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/browser-capture/pairing/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Establish a pairing with a PKCE-bound approval code
+         * @description This token operation ignores Account Identity cookies. The code,
+         *     verifier, instance, callback, state, and installation must match the
+         *     approved request exactly.
+         */
+        post: operations["exchangeBrowserCapturePairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/browser-capture/pairing/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a pairing's renewal credential on demand
+         * @description This token operation ignores Account Identity cookies. Successful
+         *     renewal rotates the opaque credential and restarts its 90-day
+         *     inactivity window.
+         */
+        post: operations["renewBrowserCapturePairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/browser-capture/pairing/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke the calling Browser Extension Installation
+         * @description This token operation ignores Account Identity cookies.
+         */
+        post: operations["disconnectBrowserCapturePairing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/browser-capture/pairings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the current User's paired installations */
+        get: operations["listBrowserCapturePairings"];
+        put?: never;
+        post?: never;
+        /** Revoke all paired installations for the current User */
+        delete: operations["revokeAllBrowserCapturePairings"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/browser-capture/pairings/{pairingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke one paired installation owned by the current User */
+        delete: operations["revokeBrowserCapturePairing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BrowserCapturePairingApprovalRequest: {
+            /** Format: uri */
+            instanceOrigin: string;
+            /** Format: uuid */
+            installationId: string;
+            installationName: string;
+            /** Format: uri */
+            callbackUri: string;
+            state: string;
+            codeChallenge: string;
+            /** @constant */
+            codeChallengeMethod: "S256";
+        };
+        BrowserCapturePairingApproval: {
+            authorizationCode: string;
+            /** Format: uri */
+            callbackUri: string;
+            state: string;
+        };
+        BrowserCapturePairingExchange: {
+            authorizationCode: string;
+            codeVerifier: string;
+            /** Format: uri */
+            instanceOrigin: string;
+            /** Format: uuid */
+            installationId: string;
+            /** Format: uri */
+            callbackUri: string;
+            state: string;
+        };
+        BrowserCapturePairingRenewal: {
+            renewalCredential: string;
+            /** Format: uuid */
+            installationId: string;
+            /** Format: uri */
+            instanceOrigin: string;
+        };
+        BrowserCapturePairingCredentials: {
+            /** @constant */
+            tokenType: "Bearer";
+            accessToken: string;
+            /** @constant */
+            expiresInSeconds: 600;
+            renewalCredential: string;
+            /** @constant */
+            renewalExpiresInSeconds: 7776000;
+            /** Format: uuid */
+            pairingId: string;
+        };
+        BrowserCapturePairingSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            installationId: string;
+            installationName: string;
+            /** Format: uri */
+            instanceOrigin: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastRenewedAt: string;
+        };
         BrowserCaptureDiscovery: {
             /**
              * @description Stable protocol identity, not a schema version.
@@ -104,6 +287,193 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BrowserCaptureDiscovery"];
                 };
+            };
+        };
+    };
+    approveBrowserCapturePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserCapturePairingApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Single-use approval code bound to the exact request */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCapturePairingApproval"];
+                };
+            };
+            /** @description Invalid pairing request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Account Identity authentication is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    exchangeBrowserCapturePairingCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserCapturePairingExchange"];
+            };
+        };
+        responses: {
+            /** @description Capture-scoped credentials for the paired installation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCapturePairingCredentials"];
+                };
+            };
+            /** @description Invalid, expired, used, or incorrectly bound code */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    renewBrowserCapturePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserCapturePairingRenewal"];
+            };
+        };
+        responses: {
+            /** @description Rotated renewal credential and ten-minute access token */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCapturePairingCredentials"];
+                };
+            };
+            /** @description Invalid, expired, replayed, or incorrectly bound credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    disconnectBrowserCapturePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserCapturePairingRenewal"];
+            };
+        };
+        responses: {
+            /** @description Pairing revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or incorrectly bound credential */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listBrowserCapturePairings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active Browser Extension Installations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCapturePairingSummary"][];
+                };
+            };
+        };
+    };
+    revokeAllBrowserCapturePairings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All pairings revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    revokeBrowserCapturePairing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pairingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pairing revoked or already absent */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

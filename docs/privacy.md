@@ -10,8 +10,11 @@ image bytes. That can include material visible because the User is signed in to
 the page. The extension sends it only to the one paired Increader instance so
 Increader can create or find the User's Bookmark and normal Reader Content.
 
-Pairing authorization information and the configured instance origin stay in
-extension-local, non-synchronized storage. A staged Capture Package stays in
+The installation UUID, rotating Browser Capture Renewal Credential, pairing
+metadata, and configured instance origin stay in extension-local,
+non-synchronized storage. Ten-minute Browser Capture Access Tokens stay only
+in extension memory. The extension never stores the Increader web session,
+password, or approval-page cookies. A staged Capture Package stays in
 extension-origin IndexedDB only while needed for transfer or explicit Retry and
 is deleted after confirmed success or Discard. Page content, credentials, and
 pairing data are never put in browser sync storage.

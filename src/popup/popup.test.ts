@@ -8,15 +8,19 @@ import { CLOUD_INSTANCE_ORIGIN, mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
   it("starts disconnected and discovers Increader Cloud without inspecting a page", async () => {
-    const discover = vi.fn().mockResolvedValue({
+    const connect = vi.fn().mockResolvedValue({
       origin: CLOUD_INSTANCE_ORIGIN,
       displayName: "Increader Cloud",
-      pairingAvailable: true
+      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd"
     });
     const pairing: Pairing = {
+      accessToken: () => Promise.reject(new Error("not paired")),
+      connect,
+      current: () => Promise.resolve(null),
       currentOrigin: () => Promise.resolve(null),
       disconnect: () => Promise.resolve(),
-      discover
+      discover: () => Promise.reject(new Error("not used"))
     };
     const root = document.createElement("main");
 
@@ -31,21 +35,61 @@ describe("compact Browser Capture popup", () => {
       getByRole(root, "button", { name: "Connect to Increader Cloud" })
     );
     await vi.waitFor(() => {
-      expect(discover).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
-      expect(getByText(root, "Ready to pair")).toBeTruthy();
+      expect(connect).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
+      expect(getByText(root, "Paired")).toBeTruthy();
+    });
+  });
+
+  it("shows the approved account destination and disconnects explicitly", async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined);
+    const pairing: Pairing = {
+      accessToken: () => Promise.resolve("bca_memory"),
+      connect: vi.fn().mockResolvedValue({
+        displayName: "Home Reader",
+        installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+        origin: "https://reader.example",
+        pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd"
+      }),
+      current: () =>
+        Promise.resolve({
+          displayName: "Home Reader",
+          installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+          origin: "https://reader.example",
+          pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd"
+        }),
+      currentOrigin: () => Promise.resolve("https://reader.example"),
+      disconnect,
+      discover: () => Promise.reject(new Error("not used"))
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, pairing);
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Paired")).toBeTruthy();
+      expect(getByText(root, "Home Reader")).toBeTruthy();
+    });
+    fireEvent.click(getByRole(root, "button", { name: "Disconnect" }));
+    await vi.waitFor(() => {
+      expect(disconnect).toHaveBeenCalledOnce();
+      expect(getByText(root, "Not connected")).toBeTruthy();
     });
   });
 
   it("keeps self-hosted discovery inside connection settings", async () => {
-    const discover = vi.fn().mockResolvedValue({
+    const connect = vi.fn().mockResolvedValue({
       origin: "https://reader.example",
       displayName: "Home Reader",
-      pairingAvailable: true
+      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd"
     });
     const pairing: Pairing = {
+      accessToken: () => Promise.reject(new Error("not paired")),
+      connect,
+      current: () => Promise.resolve(null),
       currentOrigin: () => Promise.resolve(null),
       disconnect: () => Promise.resolve(),
-      discover
+      discover: () => Promise.reject(new Error("not used"))
     };
     const root = document.createElement("main");
     mountPopup(root, pairing);
@@ -60,9 +104,9 @@ describe("compact Browser Capture popup", () => {
     fireEvent.submit(form);
 
     await vi.waitFor(() => {
-      expect(discover).toHaveBeenCalledWith("https://reader.example/");
+      expect(connect).toHaveBeenCalledWith("https://reader.example/");
       expect(getByText(root, "Home Reader")).toBeTruthy();
-      expect(getByText(root, "Ready to pair")).toBeTruthy();
+      expect(getByText(root, "Paired")).toBeTruthy();
     });
   });
 });
