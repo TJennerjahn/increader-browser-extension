@@ -16,7 +16,10 @@ and normal Reader Content.
 The configured origin and account email/display name stay in local,
 non-synchronized extension storage. For cloud accounts, Clerk's normal client
 authorization and session identifier are stored there so the extension can
-request short-lived access tokens; issued access tokens are not stored.
+request short-lived access tokens; issued access tokens are not stored. Google
+sign-in completes in a normal Increader Cloud browser tab, after which the
+extension reads the resulting Clerk client cookie from
+`clerk.increader.com`.
 Passwords are sent directly to the normal Increader Cloud or self-hosted
 authentication endpoint and are never stored. The normal HttpOnly self-hosted
 session cookie remains in the browser cookie store. A staged Capture Package

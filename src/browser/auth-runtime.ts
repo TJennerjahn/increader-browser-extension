@@ -8,7 +8,13 @@ import { runtimeOriginPermissionPattern } from "./runtime-origin-permission";
 
 interface AuthenticationCommand {
   target: "authentication";
-  command: "current" | "current-origin" | "sign-in" | "access-token" | "sign-out";
+  command:
+    | "current"
+    | "current-origin"
+    | "sign-in"
+    | "sign-in-google"
+    | "access-token"
+    | "sign-out";
   origin?: string;
   email?: string;
   password?: string;
@@ -24,8 +30,9 @@ export function createAuthenticationClient(
   runtime: typeof chrome.runtime = chrome.runtime,
   permissions: typeof chrome.permissions = chrome.permissions,
   promiseRuntime: PromiseRuntimeApi | undefined = firefoxRuntimeApi(runtime),
-  promisePermissions: PromisePermissionsApi | undefined =
-    firefoxPermissionsApi(runtime),
+  promisePermissions: PromisePermissionsApi | undefined = firefoxPermissionsApi(
+    runtime,
+  ),
 ): Authentication {
   return {
     current: () =>
@@ -41,7 +48,10 @@ export function createAuthenticationClient(
       const patterns = [runtimeOriginPermissionPattern(origin, runtime)];
       if (origin === CLOUD_INSTANCE_ORIGIN) {
         patterns.push(
-          runtimeOriginPermissionPattern("https://clerk.increader.com", runtime),
+          runtimeOriginPermissionPattern(
+            "https://clerk.increader.com",
+            runtime,
+          ),
         );
       }
       const granted =
@@ -60,6 +70,22 @@ export function createAuthenticationClient(
         email,
         origin,
         password,
+      });
+    },
+    async signInWithGoogle() {
+      await requestOrigins(
+        [
+          runtimeOriginPermissionPattern(CLOUD_INSTANCE_ORIGIN, runtime),
+          runtimeOriginPermissionPattern(
+            "https://clerk.increader.com",
+            runtime,
+          ),
+        ],
+        permissions,
+        promisePermissions,
+      );
+      return command<AuthenticatedDestination>(runtime, promiseRuntime, {
+        command: "sign-in-google",
       });
     },
     accessToken: () =>
@@ -117,6 +143,8 @@ function runCommand(
       return authentication.accessToken();
     case "sign-out":
       return authentication.signOut();
+    case "sign-in-google":
+      return authentication.signInWithGoogle();
     case "sign-in":
       if (
         message.origin === undefined ||
@@ -167,9 +195,26 @@ function isAuthenticationCommand(
     (candidate.command === "current" ||
       candidate.command === "current-origin" ||
       candidate.command === "sign-in" ||
+      candidate.command === "sign-in-google" ||
       candidate.command === "access-token" ||
       candidate.command === "sign-out")
   );
+}
+
+async function requestOrigins(
+  origins: string[],
+  permissions: typeof chrome.permissions,
+  promisePermissions: PromisePermissionsApi | undefined,
+): Promise<void> {
+  const granted =
+    promisePermissions !== undefined
+      ? await promisePermissions.request({ origins })
+      : await callbackResult<boolean>((done) => {
+          permissions.request({ origins }, done);
+        });
+  if (!granted) {
+    throw new Error("Permission to reach Increader Cloud was not granted.");
+  }
 }
 
 interface PromisePermissionsApi {
@@ -177,9 +222,7 @@ interface PromisePermissionsApi {
 }
 
 interface PromiseRuntimeApi {
-  sendMessage(
-    message: unknown,
-  ): Promise<AuthenticationResponse | undefined>;
+  sendMessage(message: unknown): Promise<AuthenticationResponse | undefined>;
 }
 
 function firefoxPermissionsApi(

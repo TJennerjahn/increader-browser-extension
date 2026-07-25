@@ -10,8 +10,9 @@ The production Chrome and Firefox manifests request the same authority.
 - `storage` — retain the chosen origin, account display metadata, Clerk client
   session state for cloud login, and small Capture Job state. It is local and
   not synchronized; passwords and issued access tokens are not stored.
-- `cookies` — read the normal HttpOnly self-hosted `increader_auth` session
-  cookie so background API requests can send it as an ordinary bearer token.
+- `cookies` — adopt the normal Increader Cloud client session after Google
+  sign-in and read the normal HttpOnly self-hosted `increader_auth` session
+  cookie so background API requests can use the resulting account session.
 - `notifications` — show one action-required import failure notification.
 
 ## Optional host access

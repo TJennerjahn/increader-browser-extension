@@ -52,76 +52,47 @@ export function mountPopup(
           class="header-action btn btn-ghost"
           type="button"
           data-view-toggle
-          aria-label="Back to import"
-          hidden
+          aria-label="Open instance settings"
         >
-          <svg data-back-icon viewBox="0 0 24 24" aria-hidden="true">
+          <svg data-back-icon viewBox="0 0 24 24" aria-hidden="true" hidden>
             <path d="m15 18-6-6 6-6"></path>
           </svg>
-          <svg data-settings-icon viewBox="0 0 24 24" aria-hidden="true" hidden>
+          <svg data-settings-icon viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
             <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06-.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.7.6 1 .3.25.68.4 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"></path>
           </svg>
         </button>
       </header>
 
-      <section
-        class="popup-view settings-view"
-        data-settings-view
-      >
-        <div class="view-heading">
-          <p class="eyebrow">Settings</p>
-          <h2>Connection settings</h2>
+      <section class="popup-view login-view" data-login-view>
+        <div class="auth-heading">
+          <p class="auth-eyebrow">Welcome back</p>
+          <h2>Sign in to Increader</h2>
         </div>
 
-      <section
-        class="connection-card card card-surface"
-        data-connection-card
-        data-state="disconnected"
-        aria-live="polite"
-      >
-        <div class="card-body">
-          <div class="section-heading">
-            <span class="section-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-            </span>
-            <div class="section-copy">
-              <p class="eyebrow">Connection</p>
-              <p class="connection-status" data-status>Signed out</p>
-            </div>
-            <button
-              class="disconnect-action btn btn-ghost"
-              type="button"
-              data-sign-out
-              hidden
-            >
-              Sign out
-            </button>
-          </div>
-          <p class="connection-detail" data-detail>
-            Sign in before importing the current page.
-          </p>
-        <form
-          class="settings-form card card-surface"
-          data-login-form
+        <p class="auth-feedback" data-auth-feedback role="status" hidden></p>
+
+        <button
+          class="google-action btn btn-outline btn-block"
+          type="button"
+          data-google-sign-in
         >
-          <label class="label" for="self-hosted-origin">
-            <span class="label-text">Increader instance origin</span>
-          </label>
-          <input
-            class="input input-bordered"
-            id="self-hosted-origin"
-            name="origin"
-            type="url"
-            inputmode="url"
-            autocomplete="url"
-            placeholder="https://reader.example"
-            value="https://app.increader.com"
-            required
-          />
+          <svg class="google-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285f4" d="M23.49 12.27c0-.78-.07-1.53-.2-2.27H12v4.3h6.46c-.28 1.45-1.12 2.68-2.38 3.51v2.9h3.85c2.25-2.07 3.56-5.12 3.56-8.44z"></path>
+            <path fill="#34a853" d="M12 24c3.24 0 5.96-1.07 7.95-2.89l-3.85-2.9c-1.08.72-2.46 1.15-4.1 1.15-3.15 0-5.82-2.13-6.78-4.99H1.24v3.05A11.99 11.99 0 0 0 12 24z"></path>
+            <path fill="#fbbc05" d="M5.22 14.37A7.2 7.2 0 0 1 4.85 12c0-.82.15-1.62.37-2.37V6.58H1.24A12 12 0 0 0 0 12c0 1.93.46 3.75 1.24 5.42l3.98-3.05z"></path>
+            <path fill="#ea4335" d="M12 4.75c1.76 0 3.33.6 4.58 1.78L20 3.11C17.94 1.17 15.22 0 12 0A11.99 11.99 0 0 0 1.24 6.58l3.98 3.05C6.18 6.88 8.85 4.75 12 4.75z"></path>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="auth-divider" data-cloud-divider>
+          <span></span>
+          <span>or</span>
+          <span></span>
+        </div>
+
+        <form class="login-form" data-login-form>
           <label class="label" for="login-email">
             <span class="label-text">Email</span>
           </label>
@@ -134,9 +105,12 @@ export function mountPopup(
             placeholder="you@example.com"
             required
           />
-          <label class="label" for="login-password">
-            <span class="label-text">Password</span>
-          </label>
+          <div class="label">
+            <label class="label-text" for="login-password">Password</label>
+            <button class="forgot-action" type="button" data-forgot-password>
+              Forgot?
+            </button>
+          </div>
           <input
             class="input input-bordered"
             id="login-password"
@@ -153,8 +127,67 @@ export function mountPopup(
             Sign in
           </button>
         </form>
-        </div>
+        <p class="instance-hint">
+          Connecting to <span data-login-origin>Increader Cloud</span>
+        </p>
       </section>
+
+      <section class="popup-view settings-view" data-settings-view hidden>
+        <div class="view-heading">
+          <p class="eyebrow">Settings</p>
+          <h2>Increader instance</h2>
+        </div>
+
+        <form class="settings-form card card-surface" data-origin-form>
+          <label class="label" for="self-hosted-origin">
+            <span class="label-text">Instance URL</span>
+          </label>
+          <input
+            class="input input-bordered"
+            id="self-hosted-origin"
+            name="origin"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="https://reader.example"
+            value="https://app.increader.com"
+            required
+          />
+          <button
+            class="primary-action btn btn-primary btn-block"
+            type="submit"
+            data-save-origin
+          >
+            Save
+          </button>
+        </form>
+
+        <section
+          class="connection-card card card-surface"
+          data-connection-card
+          data-state="disconnected"
+          aria-live="polite"
+        >
+          <div class="card-body">
+            <div class="section-heading">
+              <div class="section-copy">
+                <p class="eyebrow">Account</p>
+                <p class="connection-status" data-status>Signed out</p>
+              </div>
+              <button
+                class="disconnect-action btn btn-ghost"
+                type="button"
+                data-sign-out
+                hidden
+              >
+                Sign out
+              </button>
+            </div>
+            <p class="connection-detail" data-detail>
+              Sign in before importing the current page.
+            </p>
+          </div>
+        </section>
       </section>
 
       <section class="popup-view main-view" data-main-view hidden>
@@ -238,6 +271,7 @@ export function mountPopup(
     </section>
   `;
 
+  const loginView = requiredElement(root, "[data-login-view]") as HTMLElement;
   const mainView = requiredElement(root, "[data-main-view]") as HTMLElement;
   const settingsView = requiredElement(
     root,
@@ -256,6 +290,10 @@ export function mountPopup(
     root,
     "[data-login-form]",
   ) as HTMLFormElement;
+  const originForm = requiredElement(
+    root,
+    "[data-origin-form]",
+  ) as HTMLFormElement;
   const originInput = requiredElement(
     root,
     "#self-hosted-origin",
@@ -269,6 +307,26 @@ export function mountPopup(
     root,
     "[data-sign-in]",
   ) as HTMLButtonElement;
+  const googleSignInButton = requiredElement(
+    root,
+    "[data-google-sign-in]",
+  ) as HTMLButtonElement;
+  const cloudDivider = requiredElement(
+    root,
+    "[data-cloud-divider]",
+  ) as HTMLElement;
+  const forgotPasswordButton = requiredElement(
+    root,
+    "[data-forgot-password]",
+  ) as HTMLButtonElement;
+  const authFeedback = requiredElement(
+    root,
+    "[data-auth-feedback]",
+  ) as HTMLElement;
+  const loginOrigin = requiredElement(
+    root,
+    "[data-login-origin]",
+  ) as HTMLElement;
   const connectionCard = requiredElement(
     root,
     "[data-connection-card]",
@@ -331,25 +389,40 @@ export function mountPopup(
   const isDisposed = (): boolean => disposed;
 
   const showSettingsView = (): void => {
+    loginView.hidden = true;
     mainView.hidden = true;
     settingsView.hidden = false;
     backIcon.removeAttribute("hidden");
     settingsIcon.setAttribute("hidden", "");
-    viewToggle.ariaLabel = "Back to import";
-    viewToggle.hidden = authenticatedDestination === null;
+    viewToggle.ariaLabel =
+      authenticatedDestination === null ? "Back to sign in" : "Back to import";
+  };
+
+  const showLoginView = (): void => {
+    settingsView.hidden = true;
+    mainView.hidden = true;
+    loginView.hidden = false;
+    backIcon.setAttribute("hidden", "");
+    settingsIcon.removeAttribute("hidden");
+    viewToggle.ariaLabel = "Open instance settings";
   };
 
   const showMainView = (): void => {
+    loginView.hidden = true;
     settingsView.hidden = true;
     mainView.hidden = false;
     backIcon.setAttribute("hidden", "");
     settingsIcon.removeAttribute("hidden");
-    viewToggle.ariaLabel = "Open connection settings";
-    viewToggle.hidden = false;
+    viewToggle.ariaLabel = "Open instance settings";
   };
 
   const renderConfiguredOrigin = (): void => {
     originInput.value = configuredOrigin;
+    const cloud = configuredOrigin === CLOUD_INSTANCE_ORIGIN;
+    loginOrigin.textContent = cloud ? "Increader Cloud" : configuredOrigin;
+    googleSignInButton.hidden = !cloud;
+    cloudDivider.hidden = !cloud;
+    forgotPasswordButton.hidden = !cloud;
   };
 
   const showFaviconFallback = (): void => {
@@ -379,12 +452,13 @@ export function mountPopup(
     pageCard.hidden = true;
     renderConfiguredOrigin();
     status.textContent = "Signed out";
-    detail.textContent =
-      message ?? "Sign in before importing the current page.";
+    detail.textContent = "Sign in before importing the current page.";
+    authFeedback.textContent = message ?? "";
+    authFeedback.hidden = message === undefined;
     signInButton.disabled = false;
+    googleSignInButton.disabled = false;
     signOutButton.hidden = true;
-    loginForm.hidden = false;
-    showSettingsView();
+    showLoginView();
   };
 
   const showAuthenticated = (destination: {
@@ -393,13 +467,14 @@ export function mountPopup(
   }): void => {
     connectionCard.dataset.state = "authenticated";
     authenticatedDestination = destination;
-    renderConfiguredOrigin();
     configuredOrigin = destination.origin;
+    renderConfiguredOrigin();
     status.textContent = "Signed in";
     detail.textContent = destination.displayName;
+    authFeedback.hidden = true;
     signInButton.disabled = false;
+    googleSignInButton.disabled = false;
     signOutButton.hidden = false;
-    loginForm.hidden = true;
     if (pageDependencies !== undefined) {
       void refreshPage();
     }
@@ -512,17 +587,18 @@ export function mountPopup(
   ): Promise<void> => {
     connectionCard.dataset.state = "connecting";
     signInButton.disabled = true;
+    googleSignInButton.disabled = true;
+    authFeedback.textContent = "Checking your Increader account…";
+    authFeedback.hidden = false;
     status.textContent = "Signing in…";
     detail.textContent = "Checking your Increader account.";
     try {
-      const result = await authentication.signIn(
-        origin,
-        email,
-        password,
-      );
+      const result = await authentication.signIn(origin, email, password);
       if (isDisposed()) return;
       configuredOrigin = result.origin;
-      void connectionOriginPreference?.save(result.origin).catch(() => undefined);
+      void connectionOriginPreference
+        ?.save(result.origin)
+        .catch(() => undefined);
       passwordInput.value = "";
       showAuthenticated(result);
       showMainView();
@@ -545,6 +621,38 @@ export function mountPopup(
   const onLoginSubmit = (event: SubmitEvent): void => {
     event.preventDefault();
     connectionInteractionGeneration += 1;
+    void signIn(configuredOrigin, emailInput.value, passwordInput.value);
+  };
+  const onGoogleSignIn = (): void => {
+    if (configuredOrigin !== CLOUD_INSTANCE_ORIGIN) return;
+    connectionInteractionGeneration += 1;
+    signInButton.disabled = true;
+    googleSignInButton.disabled = true;
+    authFeedback.textContent = "Finish Google sign-in in the tab that opens.";
+    authFeedback.hidden = false;
+    void authentication
+      .signInWithGoogle()
+      .then((result) => {
+        if (isDisposed()) return;
+        configuredOrigin = result.origin;
+        void connectionOriginPreference
+          ?.save(result.origin)
+          .catch(() => undefined);
+        showAuthenticated(result);
+        showMainView();
+      })
+      .catch((error: unknown) => {
+        if (isDisposed()) return;
+        showDisconnected(
+          error instanceof Error
+            ? error.message
+            : "Increader could not complete Google sign-in.",
+        );
+      });
+  };
+  const onOriginSubmit = (event: SubmitEvent): void => {
+    event.preventDefault();
+    connectionInteractionGeneration += 1;
     let normalized: string;
     try {
       normalized = normalizeInstanceOrigin(originInput.value);
@@ -556,8 +664,31 @@ export function mountPopup(
           : "Enter a valid Increader instance origin.";
       return;
     }
+    const changed =
+      authenticatedDestination !== null &&
+      authenticatedDestination.origin !== normalized;
     configuredOrigin = normalized;
-    void signIn(normalized, emailInput.value, passwordInput.value);
+    renderConfiguredOrigin();
+    void (async () => {
+      await connectionOriginPreference?.save(normalized);
+      if (changed) await authentication.signOut();
+      if (isDisposed()) return;
+      if (changed || authenticatedDestination === null) {
+        showDisconnected();
+      } else {
+        showMainView();
+      }
+    })().catch((error: unknown) => {
+      if (isDisposed()) return;
+      status.textContent = "Could not save instance";
+      detail.textContent =
+        error instanceof Error ? error.message : "Try saving the URL again.";
+    });
+  };
+  const onForgotPassword = (): void => {
+    void pageDependencies?.openReader(
+      `${CLOUD_INSTANCE_ORIGIN}/forgot-password`,
+    );
   };
   const onSignOut = (): void => {
     connectionInteractionGeneration += 1;
@@ -578,8 +709,11 @@ export function mountPopup(
       });
   };
   const onViewToggle = (): void => {
+    connectionInteractionGeneration += 1;
     if (settingsView.hidden) {
       showSettingsView();
+    } else if (authenticatedDestination === null) {
+      showLoginView();
     } else {
       showMainView();
     }
@@ -786,6 +920,9 @@ export function mountPopup(
   viewToggle.addEventListener("click", onViewToggle);
   pageFavicon.addEventListener("error", showFaviconFallback);
   loginForm.addEventListener("submit", onLoginSubmit);
+  originForm.addEventListener("submit", onOriginSubmit);
+  googleSignInButton.addEventListener("click", onGoogleSignIn);
+  forgotPasswordButton.addEventListener("click", onForgotPassword);
   signOutButton.addEventListener("click", onSignOut);
   importButton.addEventListener("click", onImport);
   openReaderButton.addEventListener("click", onOpenReader);
@@ -819,7 +956,8 @@ export function mountPopup(
       ) {
         return;
       }
-      const candidate = preferredOrigin ?? current?.origin ?? CLOUD_INSTANCE_ORIGIN;
+      const candidate =
+        preferredOrigin ?? current?.origin ?? CLOUD_INSTANCE_ORIGIN;
       try {
         configuredOrigin = normalizeInstanceOrigin(candidate);
       } catch {
@@ -844,6 +982,9 @@ export function mountPopup(
     viewToggle.removeEventListener("click", onViewToggle);
     pageFavicon.removeEventListener("error", showFaviconFallback);
     loginForm.removeEventListener("submit", onLoginSubmit);
+    originForm.removeEventListener("submit", onOriginSubmit);
+    googleSignInButton.removeEventListener("click", onGoogleSignIn);
+    forgotPasswordButton.removeEventListener("click", onForgotPassword);
     signOutButton.removeEventListener("click", onSignOut);
     importButton.removeEventListener("click", onImport);
     openReaderButton.removeEventListener("click", onOpenReader);

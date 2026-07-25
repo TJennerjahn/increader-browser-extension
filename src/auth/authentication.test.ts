@@ -14,6 +14,7 @@ describe("normal Increader authentication", () => {
       accessToken: vi.fn().mockResolvedValue("normal-user-token"),
       isSignedIn: vi.fn().mockResolvedValue(true),
       signIn,
+      signInWithGoogle: vi.fn().mockResolvedValue("reader@example.com"),
       signOut: vi.fn().mockResolvedValue(undefined),
     };
     const authentication = createAuthentication(store(), () => account);
@@ -71,11 +72,48 @@ describe("normal Increader authentication", () => {
         accessToken: () => Promise.resolve("token"),
         isSignedIn: () => Promise.resolve(false),
         signIn: () => Promise.resolve("reader@example.com"),
+        signInWithGoogle: () => Promise.resolve("reader@example.com"),
         signOut: () => Promise.resolve(),
       }),
     );
 
     await expect(authentication.current()).resolves.toBeNull();
     expect(stored).toBeNull();
+  });
+
+  it("stores a normal Cloud account after Google sign-in", async () => {
+    let stored: AuthenticatedDestination | null = null;
+    const signInWithGoogle = vi
+      .fn()
+      .mockResolvedValue("google-reader@example.com");
+    const authentication = createAuthentication(
+      {
+        clear: () => Promise.resolve(),
+        load: () => Promise.resolve(stored),
+        save: (value) => {
+          stored = value;
+          return Promise.resolve();
+        },
+      },
+      () => ({
+        accessToken: () => Promise.resolve("token"),
+        isSignedIn: () => Promise.resolve(true),
+        signIn: () => Promise.resolve("reader@example.com"),
+        signInWithGoogle,
+        signOut: () => Promise.resolve(),
+      }),
+    );
+
+    await expect(authentication.signInWithGoogle()).resolves.toEqual({
+      displayName: "google-reader@example.com",
+      email: "google-reader@example.com",
+      origin: "https://app.increader.com",
+    });
+    expect(signInWithGoogle).toHaveBeenCalledOnce();
+    expect(stored).toEqual({
+      displayName: "google-reader@example.com",
+      email: "google-reader@example.com",
+      origin: "https://app.increader.com",
+    });
   });
 });

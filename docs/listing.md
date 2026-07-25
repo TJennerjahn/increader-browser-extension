@@ -13,7 +13,9 @@ Sign in and send the page you choose to Increader for focused reading.
 Increader Browser Capture is a compact, user-triggered utility for saving the
 currently open HTML page to Increader.
 
-Sign in to Increader Cloud or one self-hosted Increader instance.
+Sign in to Increader Cloud with Google or email and password. Use the cog to
+select one self-hosted Increader instance and sign in with its normal
+credentials.
 Open the utility to check whether the exact current URL is already in your
 library. Choose Import to capture the rendered top-level page and selected
 images, then continue in Increader's normal Reader Mode.

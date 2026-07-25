@@ -32,6 +32,7 @@ describe("compact Browser Capture popup", () => {
       current: () => Promise.resolve(null),
       currentOrigin: () => Promise.resolve(null),
       signIn,
+      signInWithGoogle: () => Promise.reject(new Error("not used")),
       signOut: () => Promise.resolve(),
     };
     const root = document.createElement("main");
@@ -39,22 +40,26 @@ describe("compact Browser Capture popup", () => {
     mountPopup(root, authentication);
 
     expect(getByText(root, "Browser Capture")).toBeTruthy();
-    expect(getByText(root, "Signed out")).toBeTruthy();
-    expect(getByText(root, "Connection settings")).toBeTruthy();
+    expect(getByText(root, "Welcome back")).toBeTruthy();
+    expect(getByText(root, "Sign in to Increader")).toBeTruthy();
     expect(
-      getByRole<HTMLInputElement>(root, "textbox", {
-        name: "Increader instance origin",
-      }).value,
+      getByRole(root, "button", { name: "Continue with Google" }),
+    ).toBeTruthy();
+    expect(
+      root.querySelector<HTMLInputElement>("#self-hosted-origin")?.value,
     ).toBe(CLOUD_INSTANCE_ORIGIN);
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      false,
+    );
     expect(
       root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
-    ).toBe(false);
+    ).toBe(true);
     expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
       true,
     );
-    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
-      true,
-    );
+    expect(
+      getByRole(root, "button", { name: "Open instance settings" }),
+    ).toBeTruthy();
 
     fireEvent.input(
       getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
@@ -73,7 +78,6 @@ describe("compact Browser Capture popup", () => {
         "reader@example.com",
         "secret",
       );
-      expect(getByText(root, "Signed in")).toBeTruthy();
       expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
         false,
       );
@@ -82,22 +86,45 @@ describe("compact Browser Capture popup", () => {
 
   it("signs in to a normalized self-hosted origin and remembers it", async () => {
     const authentication = signedOut();
-    const signIn = vi
-      .spyOn(authentication, "signIn")
-      .mockResolvedValue({
-        displayName: "reader@example.com",
-        email: "reader@example.com",
-        origin: "https://reader.example",
-      });
+    const signIn = vi.spyOn(authentication, "signIn").mockResolvedValue({
+      displayName: "reader@example.com",
+      email: "reader@example.com",
+      origin: "https://reader.example",
+    });
     const save = vi.fn().mockResolvedValue(undefined);
     const root = document.createElement("main");
     mountPopup(root, authentication, undefined, {
       load: () => Promise.resolve(null),
       save,
     });
-    fireEvent.input(getByRole<HTMLInputElement>(root, "textbox", {
-      name: "Increader instance origin",
-    }), { target: { value: "https://reader.example/" } });
+    await vi.waitFor(() => {
+      expect(getByText(root, "Welcome back")).toBeTruthy();
+    });
+    fireEvent.click(
+      getByRole(root, "button", { name: "Open instance settings" }),
+    );
+    expect(
+      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
+    ).toBe(false);
+    const instanceUrl = root.querySelector<HTMLInputElement>(
+      "#self-hosted-origin",
+    );
+    expect(instanceUrl).not.toBeNull();
+    if (instanceUrl === null) return;
+    fireEvent.input(instanceUrl, {
+      target: { value: "https://reader.example/" },
+    });
+    const originForm =
+      root.querySelector<HTMLFormElement>("[data-origin-form]");
+    expect(originForm).not.toBeNull();
+    if (originForm === null) return;
+    fireEvent.submit(originForm);
+    await vi.waitFor(() => {
+      expect(save).toHaveBeenCalledWith("https://reader.example");
+      expect(
+        root.querySelector<HTMLButtonElement>("[data-google-sign-in]")?.hidden,
+      ).toBe(true);
+    });
     fireEvent.input(
       getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
       { target: { value: "reader@example.com" } },
@@ -117,6 +144,30 @@ describe("compact Browser Capture popup", () => {
         "secret",
       );
       expect(save).toHaveBeenCalledWith("https://reader.example");
+    });
+  });
+
+  it("offers Google sign-in only for Increader Cloud", async () => {
+    const authentication = signedOut();
+    const signInWithGoogle = vi
+      .spyOn(authentication, "signInWithGoogle")
+      .mockResolvedValue({
+        displayName: "google-reader@example.com",
+        email: "google-reader@example.com",
+        origin: CLOUD_INSTANCE_ORIGIN,
+      });
+    const root = document.createElement("main");
+    mountPopup(root, authentication);
+
+    fireEvent.click(
+      getByRole(root, "button", { name: "Continue with Google" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(signInWithGoogle).toHaveBeenCalledOnce();
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
     });
   });
 
@@ -157,8 +208,7 @@ describe("compact Browser Capture popup", () => {
     expect(
       getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
     ).toBe(false);
-    const favicon =
-      root.querySelector<HTMLImageElement>("[data-page-favicon]");
+    const favicon = root.querySelector<HTMLImageElement>("[data-page-favicon]");
     expect(favicon?.src).toBe("https://example.com/favicon.ico");
     expect(favicon?.hidden).toBe(false);
     const pageCard = root.querySelector("[data-page-card]");
@@ -641,6 +691,7 @@ function signedOut(): Authentication {
     current: () => Promise.resolve(null),
     currentOrigin: () => Promise.resolve(null),
     signIn: () => Promise.reject(new Error("not used")),
+    signInWithGoogle: () => Promise.reject(new Error("not used")),
     signOut: () => Promise.resolve(),
   };
 }
@@ -660,6 +711,7 @@ function authenticatedAt(origin: string): Authentication {
       }),
     currentOrigin: () => Promise.resolve(origin),
     signIn: () => Promise.reject(new Error("not used")),
+    signInWithGoogle: () => Promise.reject(new Error("not used")),
     signOut: () => Promise.resolve(),
   };
 }

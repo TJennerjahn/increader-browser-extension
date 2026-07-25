@@ -11,6 +11,7 @@ export interface AuthenticatedDestination {
 export interface Authentication {
   current(): Promise<AuthenticatedDestination | null>;
   currentOrigin(): Promise<string | null>;
+  signInWithGoogle(): Promise<AuthenticatedDestination>;
   signIn(
     candidate: string,
     email: string,
@@ -27,6 +28,7 @@ export interface AuthenticationStore {
 }
 
 export interface AccountClient {
+  signInWithGoogle(): Promise<string>;
   signIn(email: string, password: string): Promise<string>;
   accessToken(): Promise<string>;
   isSignedIn(): Promise<boolean>;
@@ -68,6 +70,19 @@ export function createAuthentication(
         displayName: signedInEmail,
         email: signedInEmail,
         origin,
+      };
+      await store.save(destination);
+      return destination;
+    },
+
+    async signInWithGoogle() {
+      const signedInEmail = await accountAt(
+        CLOUD_INSTANCE_ORIGIN,
+      ).signInWithGoogle();
+      const destination = {
+        displayName: signedInEmail,
+        email: signedInEmail,
+        origin: CLOUD_INSTANCE_ORIGIN,
       };
       await store.save(destination);
       return destination;

@@ -7,12 +7,7 @@ import process from "node:process";
 import puppeteer from "puppeteer";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
-const extensionRoot = path.join(
-  repositoryRoot,
-  "dist",
-  "production",
-  "chrome",
-);
+const extensionRoot = path.join(repositoryRoot, "dist", "production", "chrome");
 
 execFileSync(process.execPath, ["scripts/build.mjs", "--mode", "production"], {
   cwd: repositoryRoot,
@@ -42,22 +37,37 @@ try {
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${extension.id}/popup.html`);
   await popup.waitForFunction(
-    () =>
-      document.querySelector("[data-status]")?.textContent === "Signed out",
+    () => document.querySelector("[data-status]")?.textContent === "Signed out",
   );
   const form = await popup.evaluate(() => ({
     email: document.querySelector("#login-email")?.getAttribute("type"),
+    google: document
+      .querySelector("[data-google-sign-in]")
+      ?.textContent?.trim(),
+    loginHidden: document.querySelector("[data-login-view]")?.hidden,
     origin: document
       .querySelector("#self-hosted-origin")
       ?.getAttribute("value"),
     password: document.querySelector("#login-password")?.getAttribute("type"),
+    settingsHidden: document.querySelector("[data-settings-view]")?.hidden,
   }));
   if (
     form.email !== "email" ||
+    form.google !== "Continue with Google" ||
+    form.loginHidden !== false ||
     form.password !== "password" ||
-    form.origin !== "https://app.increader.com"
+    form.origin !== "https://app.increader.com" ||
+    form.settingsHidden !== true
   ) {
     throw new Error("The production popup did not expose the account form.");
+  }
+  await popup.click("[data-view-toggle]");
+  const settings = await popup.evaluate(() => ({
+    loginHidden: document.querySelector("[data-login-view]")?.hidden,
+    settingsHidden: document.querySelector("[data-settings-view]")?.hidden,
+  }));
+  if (settings.loginHidden !== true || settings.settingsHidden !== false) {
+    throw new Error("The cog did not open the separate instance screen.");
   }
   process.stdout.write(
     `Loaded ${manifest.name} ${manifest.version} (${extension.id})\n`,

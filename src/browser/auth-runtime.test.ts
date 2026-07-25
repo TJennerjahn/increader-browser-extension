@@ -30,10 +30,7 @@ describe("popup authentication runtime", () => {
     );
 
     expect(request).toHaveBeenCalledWith({
-      origins: [
-        "https://app.increader.com/*",
-        "https://clerk.increader.com/*",
-      ],
+      origins: ["https://app.increader.com/*", "https://clerk.increader.com/*"],
     });
     expect(sendMessage).toHaveBeenCalledWith({
       command: "sign-in",
@@ -71,6 +68,37 @@ describe("popup authentication runtime", () => {
 
     expect(request).toHaveBeenCalledWith({
       origins: ["https://reader.example/*"],
+    });
+  });
+
+  it("requests Cloud and Clerk origins before Google sign-in", async () => {
+    const request = vi.fn().mockResolvedValue(true);
+    const sendMessage = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        displayName: "google-reader@example.com",
+        email: "google-reader@example.com",
+        origin: "https://app.increader.com",
+      },
+    });
+    const runtime = {
+      getURL: () => "chrome-extension://extension-id/",
+    } as unknown as typeof chrome.runtime;
+    const client = createAuthenticationClient(
+      runtime,
+      {} as typeof chrome.permissions,
+      { sendMessage },
+      { request },
+    );
+
+    await client.signInWithGoogle();
+
+    expect(request).toHaveBeenCalledWith({
+      origins: ["https://app.increader.com/*", "https://clerk.increader.com/*"],
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      command: "sign-in-google",
+      target: "authentication",
     });
   });
 });

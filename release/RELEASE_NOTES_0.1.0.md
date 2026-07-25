@@ -2,7 +2,8 @@
 
 Initial internal release for Chrome and Firefox 140+.
 
-- Sign in with a normal Increader Cloud or self-hosted account.
+- Sign in to Increader Cloud with Google or email and password, or use a normal
+  self-hosted account.
 - Check the exact active URL for an existing owned Bookmark.
 - Capture the live top-level HTML page and bounded raster images only after
   Import.

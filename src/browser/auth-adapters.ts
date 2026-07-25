@@ -10,6 +10,7 @@ const AUTHENTICATION_STORAGE_KEY = "browserCaptureAuthentication";
 const CLOUD_SESSION_STORAGE_KEY = "browserCaptureCloudSession";
 const SELF_HOSTED_COOKIE = "increader_auth";
 const CLERK_ORIGIN = "https://clerk.increader.com";
+const CLERK_CLIENT_COOKIE = "__client";
 
 export function createAuthenticationStore(
   storage: chrome.storage.StorageArea = chrome.storage.local,
@@ -47,8 +48,9 @@ export function createAccountClientFactory(
   fetcher: typeof fetch = globalThis.fetch,
   cookies: typeof chrome.cookies = chrome.cookies,
   storage: chrome.storage.StorageArea = chrome.storage.local,
+  tabs: typeof chrome.tabs = chrome.tabs,
 ): AccountClientFactory {
-  const cloud = createCloudAccountClient(fetcher, storage);
+  const cloud = createCloudAccountClient(fetcher, storage, cookies, tabs);
   return (origin) =>
     origin === CLOUD_INSTANCE_ORIGIN
       ? cloud
@@ -58,6 +60,8 @@ export function createAccountClientFactory(
 export function createCloudAccountClient(
   fetcher: typeof fetch,
   storage: chrome.storage.StorageArea,
+  cookies?: typeof chrome.cookies,
+  tabs?: typeof chrome.tabs,
 ): AccountClient {
   const accessToken = async (): Promise<string> => {
     const session = await loadCloudSession(storage);
@@ -87,6 +91,64 @@ export function createCloudAccountClient(
   };
 
   return {
+    async signInWithGoogle() {
+      if (cookies === undefined || tabs === undefined) {
+        throw new Error("Google sign-in is unavailable in this browser.");
+      }
+      const previousClient = await cookieGet(
+        cookies,
+        CLERK_ORIGIN,
+        CLERK_CLIENT_COOKIE,
+      );
+      const initialized = await clerkRequest(fetcher, "/v1/client", {
+        method: "GET",
+      });
+      const signedIn = await clerkRequest(
+        fetcher,
+        "/v1/client/sign_ins",
+        {
+          body: new URLSearchParams({
+            action_complete_redirect_url: `${CLOUD_INSTANCE_ORIGIN}/`,
+            redirect_url: `${CLOUD_INSTANCE_ORIGIN}/sign-in`,
+            strategy: "oauth_google",
+          }),
+          method: "POST",
+        },
+        initialized.authorization,
+      );
+      const attempt = objectProperty(signedIn.body, "response");
+      const verification =
+        objectProperty(attempt, "first_factor_verification") ??
+        objectProperty(attempt, "verification");
+      const redirectUrl = stringProperty(
+        verification,
+        "external_verification_redirect_url",
+      );
+      if (redirectUrl === null) {
+        throw new Error("Increader Cloud could not start Google sign-in.");
+      }
+
+      const nextClient = waitForChangedCookie(
+        cookies,
+        CLERK_ORIGIN,
+        CLERK_CLIENT_COOKIE,
+        previousClient?.value,
+      );
+      await tabCreate(tabs, redirectUrl);
+      const clientCookie = await nextClient;
+      const adopted = await clerkRequest(
+        fetcher,
+        "/v1/client",
+        { method: "GET" },
+        clientCookie.value,
+      );
+      const account = activeCloudAccount(adopted.body);
+      await saveCloudSession(storage, {
+        authorization: adopted.authorization,
+        sessionId: account.sessionId,
+      });
+      return account.email;
+    },
     async signIn(email, password) {
       const initialized = await clerkRequest(fetcher, "/v1/client", {
         method: "GET",
@@ -251,10 +313,7 @@ function objectProperty(
     : null;
 }
 
-function stringProperty(
-  value: unknown,
-  property: string,
-): string | null {
+function stringProperty(value: unknown, property: string): string | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -268,6 +327,11 @@ export function createSelfHostedAccountClient(
   cookies: typeof chrome.cookies,
 ): AccountClient {
   return {
+    signInWithGoogle() {
+      return Promise.reject(
+        new Error("Google sign-in is available only for Increader Cloud."),
+      );
+    },
     async signIn(email, password) {
       const response = await fetcher(
         new URL("/api/auth/login", `${origin}/`).toString(),
@@ -319,6 +383,106 @@ export function createSelfHostedAccountClient(
       });
     },
   };
+}
+
+function activeCloudAccount(body: unknown): {
+  email: string;
+  sessionId: string;
+} {
+  const client = objectProperty(body, "response");
+  const sessions = arrayProperty(client, "sessions");
+  const activeSessionId = stringProperty(client, "last_active_session_id");
+  const session =
+    sessions
+      .map(recordValue)
+      .find(
+        (candidate) => stringProperty(candidate, "id") === activeSessionId,
+      ) ??
+    sessions.map(recordValue).find((candidate) => candidate !== null) ??
+    null;
+  const sessionId = stringProperty(session, "id");
+  const user = objectProperty(session, "user");
+  const emailAddresses = arrayProperty(user, "email_addresses")
+    .map(recordValue)
+    .filter((value): value is Record<string, unknown> => value !== null);
+  const primaryEmailAddressId = stringProperty(
+    user,
+    "primary_email_address_id",
+  );
+  const primaryEmail =
+    emailAddresses.find(
+      (address) => stringProperty(address, "id") === primaryEmailAddressId,
+    ) ?? emailAddresses[0];
+  const email = stringProperty(primaryEmail, "email_address");
+  if (sessionId === null || email === null) {
+    throw new Error(
+      "Finish Google sign-in in the opened tab, then open Browser Capture again.",
+    );
+  }
+  return { email, sessionId };
+}
+
+function arrayProperty(value: unknown, property: string): unknown[] {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const propertyValue = (value as Record<string, unknown>)[property];
+  return Array.isArray(propertyValue) ? propertyValue : [];
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function waitForChangedCookie(
+  cookies: typeof chrome.cookies,
+  origin: string,
+  name: string,
+  previousValue?: string,
+): Promise<chrome.cookies.Cookie> {
+  const hostname = new URL(origin).hostname;
+  return new Promise((resolve, reject) => {
+    const timeout = globalThis.setTimeout(
+      () => {
+        cookies.onChanged.removeListener(onChanged);
+        reject(
+          new Error(
+            "Google sign-in timed out. Finish it and open Browser Capture again.",
+          ),
+        );
+      },
+      5 * 60 * 1000,
+    );
+    const onChanged = (change: chrome.cookies.CookieChangeInfo): void => {
+      const domain = change.cookie.domain.replace(/^\./, "");
+      if (
+        change.removed ||
+        change.cookie.name !== name ||
+        domain !== hostname ||
+        change.cookie.value === previousValue
+      ) {
+        return;
+      }
+      globalThis.clearTimeout(timeout);
+      cookies.onChanged.removeListener(onChanged);
+      resolve(change.cookie);
+    };
+    cookies.onChanged.addListener(onChanged);
+  });
+}
+
+function tabCreate(tabs: typeof chrome.tabs, url: string): Promise<void> {
+  const promiseTabs = firefoxTabsApi();
+  if (promiseTabs !== undefined) {
+    return promiseTabs.create({ active: true, url }).then(() => undefined);
+  }
+  return callbackVoid((done) => {
+    tabs.create({ active: true, url }, () => {
+      done();
+    });
+  });
 }
 
 async function requireSelfHostedToken(
@@ -379,7 +543,13 @@ function storageRemove(
 }
 
 interface PromiseCookiesApi {
-  get(details: chrome.cookies.CookieDetails): Promise<chrome.cookies.Cookie | null>;
+  get(
+    details: chrome.cookies.CookieDetails,
+  ): Promise<chrome.cookies.Cookie | null>;
+}
+
+interface PromiseTabsApi {
+  create(properties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab>;
 }
 
 interface PromiseStorageArea {
@@ -394,6 +564,14 @@ function firefoxCookiesApi(): PromiseCookiesApi | undefined {
       browser?: { cookies?: PromiseCookiesApi };
     }
   ).browser?.cookies;
+}
+
+function firefoxTabsApi(): PromiseTabsApi | undefined {
+  return (
+    globalThis as typeof globalThis & {
+      browser?: { tabs?: PromiseTabsApi };
+    }
+  ).browser?.tabs;
 }
 
 function firefoxStorageArea(): PromiseStorageArea | undefined {
