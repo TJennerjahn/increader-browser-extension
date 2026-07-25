@@ -1,0 +1,60 @@
+{
+  "fixture": "oldest-supported-server",
+  "discovery": {
+    "protocol": "increader-browser-capture",
+    "displayName": "Oldest supported Increader",
+    "pairingAvailable": true,
+    "capabilities": [
+      "pairing",
+      "bookmark-lookup",
+      "capture-package"
+    ],
+    "limits": {
+      "multipartRequestBytes": 67108864,
+      "manifestBytes": 524288,
+      "documentHtmlBytes": 5242880,
+      "domElements": 100000,
+      "assetRecords": 1000,
+      "binaryAssets": 60,
+      "assetBytes": 8388608,
+      "aggregateAssetBytes": 52428800,
+      "urlBytes": 8192,
+      "titleCodePoints": 1024,
+      "languageTagCharacters": 35,
+      "producerFieldCodePoints": 128,
+      "contentScriptChunkBytes": 196608,
+      "assetReadConcurrency": 4,
+      "assetTimeoutMilliseconds": 15000,
+      "captureDeadlineMilliseconds": 90000,
+      "transferDeadlineMilliseconds": 120000,
+      "inFlightTransfersPerPairing": 1,
+      "inFlightTransfersPerUser": 2,
+      "transferAttemptsPerUserHour": 30,
+      "idempotencyRetentionDays": 90
+    }
+  },
+  "pairingCredentials": {
+    "tokenType": "Bearer",
+    "accessToken": "fixture-access-token",
+    "expiresInSeconds": 600,
+    "renewalCredential": "fixture-renewal-credential",
+    "renewalExpiresInSeconds": 7776000,
+    "pairingId": "019c0000-0000-7000-8000-000000000088"
+  },
+  "lookupMissing": {
+    "exists": false
+  },
+  "lookupExisting": {
+    "exists": true,
+    "bookmarkId": 17,
+    "title": "Existing fixture"
+  },
+  "captureCreated": {
+    "id": 18,
+    "title": "Created fixture"
+  },
+  "captureExisting": {
+    "id": 17,
+    "title": "Existing fixture"
+  }
+}

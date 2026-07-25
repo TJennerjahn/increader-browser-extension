@@ -1,0 +1,35 @@
+{
+  "extensionVersion": "0.1.0",
+  "manifest": {
+    "captureId": "019c0000-0000-7000-8000-000000000089",
+    "capturedAt": "2026-07-25T00:00:00.000Z",
+    "sourceUrl": "https://example.test/compatibility",
+    "baseUrl": "https://example.test/compatibility",
+    "title": "Compatibility fixture",
+    "document": {
+      "bytes": 123,
+      "sha256": "5683ad6283a1120b0c1de7581023eb33bf8a984bd0378399d2fda6f842ae5063"
+    },
+    "producer": {
+      "browser": "Firefox",
+      "extensionVersion": "0.1.0"
+    },
+    "assets": [
+      {
+        "id": "asset-0001",
+        "sourceUrl": "https://example.test/compatibility.png",
+        "status": "captured",
+        "mediaType": "image/png",
+        "bytes": 12,
+        "sha256": "1b56b50ac4e976f488f128cabdcdffb2fc9331d6974bb9968131a415d14ade24"
+      }
+    ]
+  },
+  "documentHtml": "<!doctype html><html><body><img src=\"increader:browser-capture-asset/asset-0001\" alt=\"Compatibility fixture\"></body></html>",
+  "assetParts": {
+    "asset-0001": {
+      "mediaType": "image/png",
+      "dataBase64": "iVBORw0KGgoAAAAA"
+    }
+  }
+}

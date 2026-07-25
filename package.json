@@ -10,14 +10,18 @@
   "scripts": {
     "build": "node scripts/build.mjs --mode production",
     "build:dev": "node scripts/build.mjs --mode development",
+    "browser:test": "node scripts/real-browser-suite.mjs",
+    "build:reproducible": "node scripts/check-reproducible.mjs",
+    "dependency:audit": "npm audit --omit=dev --audit-level=high && node scripts/license-audit.mjs",
     "lint": "eslint . --max-warnings=0",
+    "release:verify": "npm run build:reproducible && npm run inspect && npm run web-ext:lint && npm run dependency:audit && npm run browser:test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "protocol:generate": "openapi-typescript protocol/browser-capture.openapi.yaml -o src/protocol/generated/browser-capture.ts",
     "protocol:check": "node scripts/check-protocol.mjs",
     "inspect": "node scripts/inspect-build.mjs",
     "web-ext:lint": "web-ext lint --source-dir dist/production/firefox --warnings-as-errors",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run protocol:check && npm run build:dev && npm run build && npm run inspect && npm run web-ext:lint"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run protocol:check && npm run build:dev && npm run release:verify"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -29,9 +33,17 @@
     "fflate": "0.8.3",
     "jsdom": "29.1.1",
     "openapi-typescript": "7.13.0",
+    "puppeteer": "25.3.0",
+    "sharp": "0.35.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.10",
     "web-ext": "10.5.0"
+  },
+  "overrides": {
+    "adm-zip": "0.6.0",
+    "brace-expansion": "5.0.8",
+    "js-yaml": "4.3.0",
+    "shell-quote": "1.10.0"
   }
 }

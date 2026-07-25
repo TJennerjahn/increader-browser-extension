@@ -43,14 +43,17 @@ Useful individual commands:
 - `npm run build:dev` — unminified Chrome and Firefox directories with source
   maps under `dist/development/`.
 - `npm run build` — isolated production directories and deterministic upload
-  ZIPs under `dist/production/`.
+  ZIPs, reviewer source, SBOMs, checksums, notices, permission report,
+  provenance, and listing assets under `dist/production/`.
+- `npm run browser:test` — exact-artifact smoke loads plus the real Chrome and
+  Firefox × Cloud/self-hosted release matrix.
 - `npm run protocol:check` — verify mirror provenance and generated TypeScript.
 - `npm run inspect` — reject unexpected archive files or manifest drift.
 - `npm run web-ext:lint` — validate the exact Firefox production package.
 
-Load `dist/development/chrome/` as an unpacked Chrome extension or
-`dist/development/firefox/manifest.json` as a temporary Firefox add-on. Neither
-development build requires an Increader source checkout.
+Load `dist/production/chrome/` as the exact Chrome unpacked candidate or
+`dist/production/firefox/manifest.json` as a temporary Firefox add-on. Neither
+production build requires an Increader source checkout.
 
 ## Destination discovery
 
@@ -99,6 +102,8 @@ normal Bookmark behavior.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 [privacy](docs/privacy.md), and the [permission rationale](docs/permissions.md).
+Store/reviewer copy is in [listing.md](docs/listing.md), and reproducible
+distribution steps are in [distribution.md](docs/distribution.md).
 
 ## License
 

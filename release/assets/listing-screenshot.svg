@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#eef2ff"/>
+  <rect x="90" y="76" width="1100" height="648" rx="28" fill="#ffffff" stroke="#c7d2fe" stroke-width="3"/>
+  <rect x="90" y="76" width="1100" height="64" rx="28" fill="#312e81"/>
+  <circle cx="132" cy="108" r="9" fill="#fb7185"/>
+  <circle cx="162" cy="108" r="9" fill="#facc15"/>
+  <circle cx="192" cy="108" r="9" fill="#4ade80"/>
+  <rect x="232" y="94" width="720" height="28" rx="14" fill="#eef2ff"/>
+  <text x="272" y="114" font-family="Arial, sans-serif" font-size="17" fill="#3730a3">https://example.com/article</text>
+  <rect x="790" y="174" width="350" height="480" rx="24" fill="#ffffff" stroke="#a5b4fc" stroke-width="3"/>
+  <rect x="824" y="210" width="48" height="48" rx="12" fill="#4f46e5"/>
+  <text x="890" y="242" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#1e1b4b">Browser Capture</text>
+  <text x="824" y="308" font-family="Arial, sans-serif" font-size="16" fill="#475569">Paired with Increader</text>
+  <text x="824" y="356" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0f172a">A focused article about</text>
+  <text x="824" y="382" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#0f172a">durable reading</text>
+  <rect x="824" y="438" width="282" height="56" rx="12" fill="#4f46e5"/>
+  <text x="965" y="473" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#ffffff">Import to Increader</text>
+  <text x="824" y="536" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Nothing is captured until you press Import.</text>
+  <rect x="140" y="188" width="570" height="38" rx="8" fill="#c7d2fe"/>
+  <rect x="140" y="254" width="540" height="18" rx="6" fill="#e2e8f0"/>
+  <rect x="140" y="286" width="500" height="18" rx="6" fill="#e2e8f0"/>
+  <rect x="140" y="334" width="590" height="220" rx="16" fill="#ddd6fe"/>
+  <rect x="140" y="588" width="520" height="18" rx="6" fill="#e2e8f0"/>
+  <rect x="140" y="620" width="470" height="18" rx="6" fill="#e2e8f0"/>
+</svg>

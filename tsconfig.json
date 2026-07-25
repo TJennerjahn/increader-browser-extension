@@ -11,5 +11,10 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.mjs", "vitest.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "release/browser/**/*.ts",
+    "scripts/**/*.mjs",
+    "vitest.config.ts"
+  ]
 }
