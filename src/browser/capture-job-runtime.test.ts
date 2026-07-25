@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type {
-  CaptureJob,
-  CaptureJobState,
-} from "../capture-job/capture-job";
+import type { CaptureJob, CaptureJobState } from "../capture-job/capture-job";
 import {
   createOriginBoundAccessToken,
   createCaptureFailureNotifier,
@@ -22,10 +19,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
       ) => boolean | undefined
     >();
     const sendMessage = vi.fn(
-      (
-        message: unknown,
-        callback?: (response: unknown) => void,
-      ): undefined => {
+      (message: unknown, callback?: (response: unknown) => void): undefined => {
         if (
           typeof message === "object" &&
           message !== null &&
@@ -92,6 +86,96 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     expect(observed).toEqual([completed]);
   });
 
+  it("uses Firefox Promise messaging when callbacks are unavailable", async () => {
+    const callbackSend = vi.fn();
+    const runtime = {
+      getURL: () => "moz-extension://browser-capture/",
+      lastError: undefined,
+      onMessage: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+      sendMessage: callbackSend,
+    } as unknown as typeof chrome.runtime;
+    const promiseSend = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { phase: "ready" },
+    });
+    const client = createCaptureJobClient(runtime, {
+      sendMessage: promiseSend,
+    });
+
+    await expect(client.current()).resolves.toEqual({ phase: "ready" });
+    expect(promiseSend).toHaveBeenCalledWith({
+      target: "capture-job",
+      command: "current",
+    });
+    expect(callbackSend).not.toHaveBeenCalled();
+  });
+
+  it("broadcasts background lifecycle changes through Firefox Promise messaging", async () => {
+    let publish: ((state: CaptureJobState) => void) | undefined;
+    const job: CaptureJob = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      sourceLost: vi.fn(),
+      observe(listener) {
+        publish = listener;
+        return () => {
+          publish = undefined;
+        };
+      },
+    };
+    const callbackSend = vi.fn();
+    const runtime = {
+      lastError: undefined,
+      onMessage: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+      sendMessage: callbackSend,
+    } as unknown as typeof chrome.runtime;
+    const event = {
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    };
+    const tabs = {
+      onRemoved: event,
+      onUpdated: event,
+    } as unknown as typeof chrome.tabs;
+    const action = {
+      setBadgeText: vi.fn().mockResolvedValue(undefined),
+      setBadgeBackgroundColor: vi.fn().mockResolvedValue(undefined),
+      setTitle: vi.fn().mockResolvedValue(undefined),
+    } as unknown as typeof chrome.action;
+    const promiseSend = vi.fn().mockResolvedValue(undefined);
+    const unregister = registerCaptureJobRuntime(job, runtime, tabs, action, {
+      sendMessage: promiseSend,
+    });
+    const completed: CaptureJobState = {
+      phase: "completed",
+      captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      outcome: "created",
+      bookmarkId: 84,
+      title: "Extracted article",
+      origin: "https://reader.example",
+    };
+
+    publish?.(completed);
+
+    await vi.waitFor(() => {
+      expect(promiseSend).toHaveBeenCalledWith({
+        target: "capture-job-state",
+        state: completed,
+      });
+    });
+    expect(callbackSend).not.toHaveBeenCalled();
+    unregister();
+  });
+
   it("emits one replaceable action-required notification and opens the utility", async () => {
     const clicked = new Set<(notificationId: string) => void>();
     const create = vi.fn(
@@ -138,9 +222,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
       expect.any(Function),
     );
     for (const listener of clicked) {
-      listener(
-        "browser-capture-failure-019bf66c-42ac-7c33-b57d-e2131af04fe9",
-      );
+      listener("browser-capture-failure-019bf66c-42ac-7c33-b57d-e2131af04fe9");
     }
     expect(openPopup).toHaveBeenCalledOnce();
 
@@ -187,10 +269,12 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     const runtime = {
       lastError: undefined,
       onMessage: {
-        addListener: (listener: (typeof runtimeListeners extends Set<infer T> ? T : never)) =>
-          runtimeListeners.add(listener),
-        removeListener: (listener: (typeof runtimeListeners extends Set<infer T> ? T : never)) =>
-          runtimeListeners.delete(listener),
+        addListener: (
+          listener: typeof runtimeListeners extends Set<infer T> ? T : never,
+        ) => runtimeListeners.add(listener),
+        removeListener: (
+          listener: typeof runtimeListeners extends Set<infer T> ? T : never,
+        ) => runtimeListeners.delete(listener),
       },
       sendMessage,
     } as unknown as typeof chrome.runtime;
@@ -203,16 +287,10 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
       },
       onUpdated: {
         addListener: (
-          listener: (
-            tabId: number,
-            change: chrome.tabs.OnUpdatedInfo,
-          ) => void,
+          listener: (tabId: number, change: chrome.tabs.OnUpdatedInfo) => void,
         ) => updatedListeners.add(listener),
         removeListener: (
-          listener: (
-            tabId: number,
-            change: chrome.tabs.OnUpdatedInfo,
-          ) => void,
+          listener: (tabId: number, change: chrome.tabs.OnUpdatedInfo) => void,
         ) => updatedListeners.delete(listener),
       },
     } as unknown as typeof chrome.tabs;
@@ -296,12 +374,13 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
         (message) =>
           typeof message === "object" &&
           message !== null &&
-          (message as Record<string, unknown>).target ===
-            "capture-job-state" &&
+          (message as Record<string, unknown>).target === "capture-job-state" &&
           typeof (message as Record<string, unknown>).state === "object" &&
           (
-            (message as Record<string, unknown>)
-              .state as Record<string, unknown>
+            (message as Record<string, unknown>).state as Record<
+              string,
+              unknown
+            >
           ).phase === "completed",
       ),
     ).toBe(true);

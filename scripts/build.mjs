@@ -1,13 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import {
-  cp,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { TextEncoder } from "node:util";
@@ -17,8 +10,7 @@ import sharp from "sharp";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const modeArgument = process.argv.indexOf("--mode");
-const mode =
-  modeArgument >= 0 ? process.argv[modeArgument + 1] : "production";
+const mode = modeArgument >= 0 ? process.argv[modeArgument + 1] : "production";
 if (mode !== "production" && mode !== "development") {
   throw new Error(`Unsupported build mode: ${mode}`);
 }
@@ -71,7 +63,9 @@ async function buildBrowser(browser) {
   );
   await Promise.all(
     [16, 32, 48, 128].map((size) =>
-      sharp(path.join(repositoryRoot, "release", "assets", "increader-mark.svg"))
+      sharp(
+        path.join(repositoryRoot, "release", "assets", "increader-mark.svg"),
+      )
         .resize(size, size)
         .png({ adaptiveFiltering: false, compressionLevel: 9, palette: true })
         .toFile(path.join(browserRoot, "icons", `icon-${size}.png`)),
@@ -110,11 +104,10 @@ async function buildReleaseBundle() {
   await mkdir(metadataRoot, { recursive: true });
   await mkdir(listingRoot, { recursive: true });
   await Promise.all([
-    sharp(
-      path.join(repositoryRoot, "release", "assets", "listing-screenshot.svg"),
-    )
-      .png({ adaptiveFiltering: false, compressionLevel: 9 })
-      .toFile(path.join(listingRoot, "screenshot-1280x800.png")),
+    cp(
+      path.join(repositoryRoot, "release", "assets", "listing-screenshot.png"),
+      path.join(listingRoot, "screenshot-1280x800.png"),
+    ),
     sharp(path.join(repositoryRoot, "release", "assets", "chrome-promo.svg"))
       .png({ adaptiveFiltering: false, compressionLevel: 9 })
       .toFile(path.join(listingRoot, "chrome-promo-440x280.png")),
@@ -185,9 +178,8 @@ recorded in \`release-metadata/provenance.json\`.
     "REVIEWER_SOURCE_BUILD.md": stringEntry(sourceBuild),
   };
   for (const name of await recursiveFiles(metadataRoot)) {
-    sourceArchiveEntries[
-      `release-metadata/${name.replaceAll(path.sep, "/")}`
-    ] = fileEntry(path.join(metadataRoot, name));
+    sourceArchiveEntries[`release-metadata/${name.replaceAll(path.sep, "/")}`] =
+      fileEntry(path.join(metadataRoot, name));
   }
   await resolveEntryPromises(sourceArchiveEntries);
   await writeZip(
@@ -225,10 +217,7 @@ async function buildPermissionReport() {
   const reports = {};
   for (const browser of browsers) {
     const manifest = JSON.parse(
-      await readFile(
-        path.join(outputRoot, browser, "manifest.json"),
-        "utf8",
-      ),
+      await readFile(path.join(outputRoot, browser, "manifest.json"), "utf8"),
     );
     reports[browser] = {
       required: [...manifest.permissions].sort(),
@@ -261,21 +250,19 @@ async function buildPermissionReport() {
 }
 
 function normalizedSbom(format, sourceCommitEpoch, sourceTreeSha256) {
-  const raw = execFileSync(
-    "npm",
-    ["sbom", "--sbom-format", format],
-    { cwd: repositoryRoot, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
-  );
+  const raw = execFileSync("npm", ["sbom", "--sbom-format", format], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
   const value = JSON.parse(raw);
   const timestamp = new Date(sourceCommitEpoch * 1_000).toISOString();
   if (format === "spdx") {
     value.creationInfo.created = timestamp;
-    value.documentNamespace =
-      `https://increader.com/sbom/${version}/${sourceTreeSha256}`;
+    value.documentNamespace = `https://increader.com/sbom/${version}/${sourceTreeSha256}`;
   } else {
     value.metadata.timestamp = timestamp;
-    value.serialNumber =
-      `urn:uuid:${sourceTreeSha256.slice(0, 8)}-${sourceTreeSha256.slice(8, 12)}-4${sourceTreeSha256.slice(13, 16)}-a${sourceTreeSha256.slice(17, 20)}-${sourceTreeSha256.slice(20, 32)}`;
+    value.serialNumber = `urn:uuid:${sourceTreeSha256.slice(0, 8)}-${sourceTreeSha256.slice(8, 12)}-4${sourceTreeSha256.slice(13, 16)}-a${sourceTreeSha256.slice(17, 20)}-${sourceTreeSha256.slice(20, 32)}`;
   }
   return value;
 }
@@ -329,6 +316,7 @@ async function reviewerSourceEntries() {
     }
   }
   for (const name of [
+    "CHANGELOG.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "README.md",
@@ -414,8 +402,8 @@ async function writeJson(file, value) {
 
 function hashEntries(entries) {
   const hash = createHash("sha256");
-  for (const [name, [bytes]] of Object.entries(entries).sort(([left], [right]) =>
-    left.localeCompare(right),
+  for (const [name, [bytes]] of Object.entries(entries).sort(
+    ([left], [right]) => left.localeCompare(right),
   )) {
     hash.update(name);
     hash.update("\0");

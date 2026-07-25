@@ -32,6 +32,15 @@ windows, mobile browsers, and Safari are not supported in this release.
 - Category: Productivity
 - Primary language: English
 
+## Public URLs
+
+- Homepage:
+  `https://github.com/TJennerjahn/increader-browser-extension`
+- Support:
+  `https://github.com/TJennerjahn/Increader/issues`
+- Privacy policy:
+  `https://github.com/TJennerjahn/increader-browser-extension/blob/main/docs/privacy.md`
+
 ## Privacy and data-use answers
 
 - Single purpose: user-authorized capture to Increader.
@@ -50,11 +59,14 @@ justification in [permissions.md](permissions.md).
 
 ## Assets
 
-Checked-in synthetic masters are under `release/assets/`. A clean release build
-emits:
+Checked-in masters are under `release/assets/`. The 1280 × 800 listing
+screenshot contains the actual 0.1.0 production popup rendered by Chrome for
+Testing 150 in its disconnected state; the surrounding explanatory canvas and
+the 440 × 280 promotional image contain only release artwork. A clean release
+build emits:
 
 - `listing/screenshot-1280x800.png`
 - `listing/chrome-promo-440x280.png`
 - 16, 32, 48, and 128 pixel runtime icons
 
-The screenshot and promotional image contain no User or publisher content.
+Neither asset contains User or publisher content.

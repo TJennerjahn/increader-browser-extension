@@ -130,9 +130,12 @@ const sourceArchive = unzipSync(
 );
 const sourceEntries = Object.keys(sourceArchive).sort();
 for (const required of [
+  "CHANGELOG.md",
   "LICENSE",
   "README.md",
   "REVIEWER_SOURCE_BUILD.md",
+  "SECURITY.md",
+  "SUPPORT.md",
   "package-lock.json",
   "package.json",
   "release-metadata/provenance.json",
@@ -149,7 +152,9 @@ if (sourceEntries.some((name) => forbiddenSourceName.test(name))) {
 }
 for (const [name, bytes] of Object.entries(sourceArchive)) {
   if (sensitiveContent.test(new TextDecoder().decode(bytes))) {
-    throw new Error(`Reviewer source archive contains credential material: ${name}`);
+    throw new Error(
+      `Reviewer source archive contains credential material: ${name}`,
+    );
   }
 }
 
@@ -204,10 +209,7 @@ for (const [file, width, height] of [
   ["listing/chrome-promo-440x280.png", 440, 280],
 ]) {
   const bytes = await readFile(path.join(outputRoot, file));
-  if (
-    bytes.readUInt32BE(16) !== width ||
-    bytes.readUInt32BE(20) !== height
-  ) {
+  if (bytes.readUInt32BE(16) !== width || bytes.readUInt32BE(20) !== height) {
     throw new Error(`${file} has incorrect dimensions`);
   }
 }
@@ -225,9 +227,7 @@ function assertSameSet(label, actual, expected) {
   const normalizedActual = [...actual].sort();
   const normalizedExpected = [...expected].sort();
   if (JSON.stringify(normalizedActual) !== JSON.stringify(normalizedExpected)) {
-    throw new Error(
-      `${label} changed: ${normalizedActual.join(", ")}`,
-    );
+    throw new Error(`${label} changed: ${normalizedActual.join(", ")}`);
   }
 }
 

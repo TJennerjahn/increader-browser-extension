@@ -1,17 +1,9 @@
-import {
-  createBrowserIdentityFlow,
-  createCredentialStore,
-  createDestinationStore,
-  createInstallationIdentity,
-  createRuntimeOriginPermissions,
-  createTabOpener,
-} from "../browser/chrome-adapters";
+import { createTabOpener } from "../browser/chrome-adapters";
 import { createActivePageInspector } from "../browser/active-page";
-import { createPairing } from "../pairing/pairing";
-import { createDiscoveryHttpClient } from "../protocol/discovery-http";
-import { createPairingHttpClient } from "../protocol/pairing-http";
 import { createBookmarkLookupHttpClient } from "../protocol/bookmark-lookup-http";
 import { createCaptureJobClient } from "../browser/capture-job-runtime";
+import { createPairingClient } from "../browser/pairing-runtime";
+import { holdBackgroundForPopup } from "../browser/popup-lifetime";
 import { mountPopup } from "./popup";
 
 const root = document.querySelector<HTMLElement>("#app");
@@ -19,19 +11,21 @@ if (root === null) {
   throw new Error("Popup root is missing");
 }
 
-const pairing = createPairing({
-  credentials: createCredentialStore(),
-  discovery: createDiscoveryHttpClient(),
-  identity: createBrowserIdentityFlow(),
-  installation: createInstallationIdentity(),
-  permissions: createRuntimeOriginPermissions(),
-  protocol: createPairingHttpClient(),
-  store: createDestinationStore(),
-});
+const pairing = createPairingClient();
+const releaseBackground = holdBackgroundForPopup();
 
-mountPopup(root, pairing, {
+const unmount = mountPopup(root, pairing, {
   activePage: createActivePageInspector(),
   captureJob: createCaptureJobClient(),
   lookup: createBookmarkLookupHttpClient(),
   openReader: createTabOpener(),
 });
+
+globalThis.addEventListener(
+  "unload",
+  () => {
+    unmount();
+    releaseBackground();
+  },
+  { once: true },
+);

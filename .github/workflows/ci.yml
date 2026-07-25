@@ -21,10 +21,12 @@ jobs:
       - run: npm ci
       - name: Install pinned real-browser engines and system dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb xdotool
           npx puppeteer browsers install chrome --install-deps
-          npx puppeteer browsers install firefox --install-deps
+          npx puppeteer browsers install firefox@stable --install-deps
       - name: Lint, test, audit, verify protocol, and smoke exact packages
-        run: npm run verify
+        run: xvfb-run -a npm run verify
       - uses: actions/upload-artifact@v4
         with:
           name: browser-extension-packages
@@ -37,3 +39,49 @@ jobs:
             dist/production/listing/
             dist/production/release-metadata/
           if-no-files-found: error
+
+  release-matrix:
+    needs: extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the coordinated Increader contract ref
+        id: increader-ref
+        env:
+          EXTENSION_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "${EXTENSION_HEAD_REF}" = "codex/browser-capture-v1" ] &&
+            git ls-remote --exit-code --heads \
+              https://github.com/TJennerjahn/Increader.git \
+              codex/wayfinder-capture-package-contract >/dev/null
+          then
+            echo "ref=codex/wayfinder-capture-package-contract" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=main" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        with:
+          repository: TJennerjahn/Increader
+          ref: ${{ steps.increader-ref.outputs.ref }}
+          path: Increader
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: Increader/apps/api/*.gradle*
+      - run: npm ci
+      - name: Install pinned real-browser engines and system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb xdotool
+          npx puppeteer browsers install chrome --install-deps
+          npx puppeteer browsers install firefox@stable --install-deps
+      - name: Run exact Chrome, Firefox, Cloud, self-hosted, and ESR matrix
+        env:
+          INCREADER_REPOSITORY: ${{ github.workspace }}/Increader
+        run: xvfb-run -a npm run browser:test:matrix

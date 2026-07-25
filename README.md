@@ -46,7 +46,11 @@ Useful individual commands:
   ZIPs, reviewer source, SBOMs, checksums, notices, permission report,
   provenance, and listing assets under `dist/production/`.
 - `npm run browser:test` — exact-artifact smoke loads plus the real Chrome and
-  Firefox × Cloud/self-hosted release matrix.
+  Firefox self-hosted workflow and stress/fault suite.
+- `npm run browser:test:matrix` — the complete Cloud/self-hosted matrix,
+  including checksum-pinned Firefox 140.0 ESR and current Firefox.
+- `npm run upgrade:test` — genuine previous-candidate browser-profile upgrades
+  using exact 0.1.0 packages.
 - `npm run protocol:check` — verify mirror provenance and generated TypeScript.
 - `npm run inspect` — reject unexpected archive files or manifest drift.
 - `npm run web-ext:lint` — validate the exact Firefox production package.

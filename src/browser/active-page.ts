@@ -24,12 +24,17 @@ interface ObservedTopLevelDocument {
 export function createActivePageInspector(
   tabs: typeof chrome.tabs = chrome.tabs,
   scripting: typeof chrome.scripting = chrome.scripting,
+  promiseApis: PromisePageApis | undefined = firefoxPageApis(),
 ): ActivePageInspector {
   return {
     async inspect() {
-      const activeTabs = await callbackResult<chrome.tabs.Tab[]>((done) => {
-        tabs.query({ active: true, currentWindow: true }, done);
-      });
+      const query = { active: true, currentWindow: true };
+      const activeTabs =
+        promiseApis === undefined
+          ? await callbackResult<chrome.tabs.Tab[]>((done) => {
+              tabs.query(query, done);
+            })
+          : await promiseApis.tabs.query(query);
       const active = activeTabs[0];
       if (active?.id === undefined || active.url === undefined) {
         return unsupported("No active page is available.");
@@ -41,16 +46,17 @@ export function createActivePageInspector(
 
       let results: chrome.scripting.InjectionResult<unknown>[];
       try {
-        results = await callbackResult((done) => {
-          scripting.executeScript(
-            {
-              func: observeTopLevelDocument,
-              target: { tabId: active.id as number },
-              world: "ISOLATED",
-            },
-            done,
-          );
-        });
+        const injection = {
+          func: observeTopLevelDocument,
+          target: { tabId: active.id },
+          world: "ISOLATED",
+        } satisfies chrome.scripting.ScriptInjection<[], unknown>;
+        results =
+          promiseApis === undefined
+            ? await callbackResult((done) => {
+                scripting.executeScript(injection, done);
+              })
+            : await promiseApis.scripting.executeScript(injection);
       } catch {
         return unsupported("This page cannot be inspected for import.");
       }
@@ -100,6 +106,29 @@ export function createActivePageInspector(
       };
     },
   };
+}
+
+interface PromisePageApis {
+  tabs: {
+    query(query: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab[]>;
+  };
+  scripting: {
+    executeScript(
+      injection: chrome.scripting.ScriptInjection<[], unknown>,
+    ): Promise<chrome.scripting.InjectionResult<unknown>[]>;
+  };
+}
+
+function firefoxPageApis(): PromisePageApis | undefined {
+  const candidate = (
+    globalThis as typeof globalThis & {
+      browser?: Partial<PromisePageApis>;
+    }
+  ).browser;
+  if (candidate?.tabs === undefined || candidate.scripting === undefined) {
+    return undefined;
+  }
+  return candidate as PromisePageApis;
 }
 
 function observeTopLevelDocument(): ObservedTopLevelDocument {

@@ -89,6 +89,7 @@ export class CapturePackageError extends Error {
 
 interface CapturePackageAssemblerDependencies {
   scripting?: typeof chrome.scripting;
+  promiseScripting?: PromiseScriptingApi;
   randomUuid?: () => string;
   now?: () => Date;
   producer: {
@@ -126,24 +127,26 @@ interface CapturedPageAsset {
 
 export function createCapturePackageAssembler({
   scripting = chrome.scripting,
+  promiseScripting = firefoxScriptingApi(),
   randomUuid = () => globalThis.crypto.randomUUID(),
   now = () => new Date(),
   producer,
 }: CapturePackageAssemblerDependencies): CapturePackageAssembler {
   return {
     async capture(page, onProgress, signal) {
-      const results = await callbackResult<
-        chrome.scripting.InjectionResult<unknown>[]
-      >((done) => {
-        scripting.executeScript(
-          {
-            func: captureTopLevelDocument,
-            target: { tabId: page.tabId },
-            world: "MAIN",
-          },
-          done,
-        );
-      });
+      const injection = {
+        func: captureTopLevelDocument,
+        target: { tabId: page.tabId },
+        world: "MAIN",
+      } satisfies chrome.scripting.ScriptInjection<[], unknown>;
+      const results =
+        promiseScripting === undefined
+          ? await callbackResult<chrome.scripting.InjectionResult<unknown>[]>(
+              (done) => {
+                scripting.executeScript(injection, done);
+              },
+            )
+          : await promiseScripting.executeScript(injection);
       const captured = results.find((result) => result.frameId === 0)?.result;
       throwIfCaptureCancelled(signal);
       if (!isCapturedTopLevelDocument(captured)) {
@@ -301,6 +304,20 @@ export function createCapturePackageAssembler({
       });
     },
   };
+}
+
+interface PromiseScriptingApi {
+  executeScript(
+    injection: chrome.scripting.ScriptInjection<[], unknown>,
+  ): Promise<chrome.scripting.InjectionResult<unknown>[]>;
+}
+
+function firefoxScriptingApi(): PromiseScriptingApi | undefined {
+  return (
+    globalThis as typeof globalThis & {
+      browser?: { scripting?: PromiseScriptingApi };
+    }
+  ).browser?.scripting;
 }
 
 function throwIfCaptureCancelled(signal: AbortSignal | undefined): void {
@@ -496,9 +513,12 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
       return { status: "unavailable", reason: "timeout" };
     }
     const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, Math.min(assetTimeoutMilliseconds, remainingCaptureMilliseconds));
+    const timeout = setTimeout(
+      () => {
+        controller.abort();
+      },
+      Math.min(assetTimeoutMilliseconds, remainingCaptureMilliseconds),
+    );
     try {
       const response = await fetch(sourceUrl, {
         credentials: "include",
@@ -508,10 +528,7 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
         return { status: "unavailable", reason: "acquisition_failed" };
       }
       const declaredLength = Number(response.headers.get("Content-Length"));
-      if (
-        Number.isFinite(declaredLength) &&
-        declaredLength > assetBytesLimit
-      ) {
+      if (Number.isFinite(declaredLength) && declaredLength > assetBytesLimit) {
         await response.body?.cancel();
         return { status: "unavailable", reason: "asset_too_large" };
       }
@@ -666,7 +683,11 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
   let capturedBytes = 0;
   let binaryLimitReached = false;
   let aggregateLimitReached = false;
-  for (let start = 0; start < candidates.length; start += assetReadConcurrency) {
+  for (
+    let start = 0;
+    start < candidates.length;
+    start += assetReadConcurrency
+  ) {
     const batch = candidates.slice(start, start + assetReadConcurrency);
     if (binaryLimitReached || aggregateLimitReached) {
       for (const [offset, asset] of batch.entries()) {
@@ -699,10 +720,7 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
         } else if (capturedAssets >= capturedAssetsLimit) {
           binaryLimitReached = true;
           outcome = { status: "unavailable", reason: "binary_limit" };
-        } else if (
-          capturedBytes + outcomeBytes >
-          aggregateAssetBytesLimit
-        ) {
+        } else if (capturedBytes + outcomeBytes > aggregateAssetBytesLimit) {
           aggregateLimitReached = true;
           outcome = { status: "unavailable", reason: "aggregate_limit" };
         } else {

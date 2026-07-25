@@ -1,5 +1,9 @@
 import type { Pairing } from "../pairing/pairing";
 import type {
+  PairingClient,
+  PairingOperationState,
+} from "../browser/pairing-runtime";
+import type {
   ActivePageInspection,
   ActivePageInspector,
 } from "../browser/active-page";
@@ -19,7 +23,7 @@ export interface PopupPageDependencies {
 
 export function mountPopup(
   root: HTMLElement,
-  pairing: Pairing,
+  pairing: Pairing & Partial<Pick<PairingClient, "observe" | "operation">>,
   pageDependencies?: PopupPageDependencies,
 ): () => void {
   root.innerHTML = `
@@ -191,6 +195,27 @@ export function mountPopup(
     disconnectButton.hidden = false;
     if (pageDependencies !== undefined) {
       void refreshPage();
+    }
+  };
+
+  const renderPairingOperation = (operation: PairingOperationState): void => {
+    if (operation.phase === "waiting-permission") {
+      status.textContent = "Connecting…";
+      detail.textContent =
+        "Allow access to this Increader instance in the browser prompt.";
+      cloudButton.disabled = true;
+      disconnectButton.hidden = true;
+      return;
+    }
+    if (operation.phase === "connecting") {
+      status.textContent = "Connecting…";
+      detail.textContent = "Approve Browser Capture in the Increader window.";
+      cloudButton.disabled = true;
+      disconnectButton.hidden = true;
+      return;
+    }
+    if (operation.phase === "failed") {
+      showDisconnected(operation.message);
     }
   };
 
@@ -545,9 +570,9 @@ export function mountPopup(
       void refreshPage();
     }
   });
-  const stopObservingJob = pageDependencies?.captureJob?.observe(
-    renderJobState,
-  );
+  const stopObservingJob =
+    pageDependencies?.captureJob?.observe(renderJobState);
+  const stopObservingPairing = pairing.observe?.(renderPairingOperation);
   void pageDependencies?.captureJob
     ?.current()
     .then(renderJobState)
@@ -558,6 +583,12 @@ export function mountPopup(
       showPaired(current);
     }
   });
+  void pairing
+    .operation?.()
+    .then((operation) => {
+      if (!disposed) renderPairingOperation(operation);
+    })
+    .catch(() => undefined);
 
   return () => {
     disposed = true;
@@ -574,6 +605,7 @@ export function mountPopup(
     discardButton.removeEventListener("click", onDiscard);
     stopObserving?.();
     stopObservingJob?.();
+    stopObservingPairing?.();
   };
 }
 

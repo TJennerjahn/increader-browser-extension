@@ -1,7 +1,4 @@
-import type {
-  CaptureJob,
-  CaptureJobState,
-} from "../capture-job/capture-job";
+import type { CaptureJob, CaptureJobState } from "../capture-job/capture-job";
 import type { ActivePageInspection } from "./active-page";
 
 type SupportedPage = Extract<ActivePageInspection, { kind: "supported" }>;
@@ -32,19 +29,23 @@ export type CaptureJobClient = Pick<
 
 export function createCaptureJobClient(
   runtime: typeof chrome.runtime = chrome.runtime,
+  promiseRuntime: PromiseRuntimeApi | undefined = firefoxRuntimeApi(runtime),
 ): CaptureJobClient {
   return {
-    current: () => command<CaptureJobState>(runtime, { command: "current" }),
+    current: () =>
+      command<CaptureJobState>(runtime, promiseRuntime, {
+        command: "current",
+      }),
     startImport: (page, origin, replaceExisting = false) =>
-      command(runtime, {
+      command(runtime, promiseRuntime, {
         command: "start",
         page,
         origin,
         replaceExisting,
       }),
-    retry: () => command(runtime, { command: "retry" }),
-    cancel: () => command(runtime, { command: "cancel" }),
-    discard: () => command(runtime, { command: "discard" }),
+    retry: () => command(runtime, promiseRuntime, { command: "retry" }),
+    cancel: () => command(runtime, promiseRuntime, { command: "cancel" }),
+    discard: () => command(runtime, promiseRuntime, { command: "discard" }),
     observe(listener) {
       const onMessage = (message: unknown): boolean => {
         if (isStateMessage(message)) {
@@ -65,18 +66,24 @@ export function registerCaptureJobRuntime(
   runtime: typeof chrome.runtime = chrome.runtime,
   tabs: typeof chrome.tabs = chrome.tabs,
   action: typeof chrome.action = chrome.action,
+  promiseRuntime: PromiseRuntimeApi | undefined = firefoxRuntimeApi(runtime),
 ): () => void {
   const broadcast = (state: CaptureJobState): void => {
     updateAction(action, state);
+    const message = {
+      target: "capture-job-state",
+      state,
+    } satisfies RuntimeStateMessage;
+    if (promiseRuntime !== undefined) {
+      void promiseRuntime.sendMessage(message).catch(() => undefined);
+      return;
+    }
     try {
-      runtime.sendMessage(
-        { target: "capture-job-state", state } satisfies RuntimeStateMessage,
-        () => {
-          // A closed popup is the ordinary case. Reading lastError prevents a
-          // rejected callback warning without changing the background job.
-          void runtime.lastError;
-        },
-      );
+      runtime.sendMessage(message, () => {
+        // A closed popup is the ordinary case. Reading lastError prevents a
+        // rejected callback warning without changing the background job.
+        void runtime.lastError;
+      });
     } catch {
       // A missing popup receiver never changes Capture Job ownership.
     }
@@ -215,30 +222,72 @@ async function runCommand(
 
 function command<T>(
   runtime: typeof chrome.runtime,
+  promiseRuntime: PromiseRuntimeApi | undefined,
   message: Omit<RuntimeCommand, "target">,
 ): Promise<T> {
+  const request = {
+    target: "capture-job",
+    ...message,
+  } satisfies RuntimeCommand;
+  if (promiseRuntime !== undefined) {
+    return promiseRuntime
+      .sendMessage(request)
+      .then((response) => readResponse(response) as T);
+  }
   return new Promise((resolve, reject) => {
-    runtime.sendMessage(
-      { target: "capture-job", ...message } satisfies RuntimeCommand,
-      (response: RuntimeResponse | undefined) => {
-        const runtimeError = runtime.lastError;
-        if (runtimeError !== undefined) {
-          reject(new Error(runtimeError.message));
-          return;
-        }
-        if (response?.ok !== true) {
-          reject(
-            new Error(
-              response?.message ??
-                "The Browser Capture background is unavailable.",
-            ),
-          );
-          return;
-        }
-        resolve(response.value as T);
-      },
-    );
+    runtime.sendMessage(request, (response: RuntimeResponse | undefined) => {
+      const runtimeError = runtime.lastError;
+      if (runtimeError !== undefined) {
+        reject(new Error(runtimeError.message));
+        return;
+      }
+      try {
+        resolve(readResponse(response) as T);
+      } catch (error) {
+        reject(
+          error instanceof Error
+            ? error
+            : new Error(
+                "The Browser Capture background response was invalid.",
+                {
+                  cause: error,
+                },
+              ),
+        );
+      }
+    });
   });
+}
+
+interface PromiseRuntimeApi {
+  sendMessage(message: unknown): Promise<RuntimeResponse | undefined>;
+}
+
+function firefoxRuntimeApi(
+  runtime: typeof chrome.runtime,
+): PromiseRuntimeApi | undefined {
+  const runtimeWithOptionalUrl = runtime as {
+    getURL?: (path: string) => string;
+  };
+  if (
+    runtimeWithOptionalUrl.getURL?.("").startsWith("moz-extension://") !== true
+  ) {
+    return undefined;
+  }
+  return (
+    globalThis as typeof globalThis & {
+      browser?: { runtime?: PromiseRuntimeApi };
+    }
+  ).browser?.runtime;
+}
+
+function readResponse(response: RuntimeResponse | undefined): unknown {
+  if (response?.ok !== true) {
+    throw new Error(
+      response?.message ?? "The Browser Capture background is unavailable.",
+    );
+  }
+  return response.value;
 }
 
 function isRuntimeCommand(value: unknown): value is RuntimeCommand {

@@ -4,14 +4,13 @@ import { fireEvent, getByRole, getByText } from "@testing-library/dom";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Pairing } from "../pairing/pairing";
+import type { PairingClient } from "../browser/pairing-runtime";
 import type {
   ActivePageInspection,
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
-import type {
-  CaptureJobClient,
-} from "../browser/capture-job-runtime";
+import type { CaptureJobClient } from "../browser/capture-job-runtime";
 import { CLOUD_INSTANCE_ORIGIN, mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
@@ -117,6 +116,56 @@ describe("compact Browser Capture popup", () => {
       expect(getByText(root, "Paired")).toBeTruthy();
     });
   });
+
+  it.each([
+    {
+      operation: {
+        phase: "waiting-permission",
+        origin: "https://reader.example",
+      } as const,
+      status: "Connecting…",
+      detail: "Allow access to this Increader instance in the browser prompt.",
+    },
+    {
+      operation: {
+        phase: "connecting",
+        origin: "https://reader.example",
+      } as const,
+      status: "Connecting…",
+      detail: "Approve Browser Capture in the Increader window.",
+    },
+    {
+      operation: {
+        phase: "failed",
+        origin: "https://reader.example",
+        message: "Pairing was cancelled.",
+      } as const,
+      status: "Not connected",
+      detail: "Pairing was cancelled.",
+    },
+  ])(
+    "restores $operation.phase Pairing state after reopening",
+    async ({ operation, status, detail }) => {
+      const pairing: PairingClient = {
+        accessToken: () => Promise.reject(new Error("not paired")),
+        connect: () => Promise.reject(new Error("not used")),
+        current: () => Promise.resolve(null),
+        currentOrigin: () => Promise.resolve(null),
+        disconnect: () => Promise.resolve(),
+        discover: () => Promise.reject(new Error("not used")),
+        observe: () => () => undefined,
+        operation: () => Promise.resolve(operation),
+      };
+      const root = document.createElement("main");
+
+      mountPopup(root, pairing);
+
+      await vi.waitFor(() => {
+        expect(getByText(root, status)).toBeTruthy();
+        expect(getByText(root, detail)).toBeTruthy();
+      });
+    },
+  );
 
   it("shows a paired supported page as Ready without authorizing Import", async () => {
     const page: ActivePageInspection = {
@@ -363,9 +412,9 @@ describe("compact Browser Capture popup", () => {
     expect(
       getByText(root, "Waiting for Increader to finish importing…"),
     ).toBeTruthy();
-    expect(
-      root.querySelector<HTMLButtonElement>("[data-cancel]")?.hidden,
-    ).toBe(true);
+    expect(root.querySelector<HTMLButtonElement>("[data-cancel]")?.hidden).toBe(
+      true,
+    );
 
     observe?.({
       phase: "completed",
@@ -378,9 +427,7 @@ describe("compact Browser Capture popup", () => {
     await vi.waitFor(() => {
       expect(getByText(root, "Imported")).toBeTruthy();
       expect(getByText(root, "Extracted article")).toBeTruthy();
-      expect(
-        getByRole(root, "button", { name: "Open Reader" }),
-      ).toBeTruthy();
+      expect(getByRole(root, "button", { name: "Open Reader" })).toBeTruthy();
     });
   });
 
@@ -568,9 +615,9 @@ describe("compact Browser Capture popup", () => {
     expect(root.querySelector<HTMLButtonElement>("[data-retry]")?.hidden).toBe(
       true,
     );
-    expect(root.querySelector<HTMLButtonElement>("[data-discard]")?.hidden).toBe(
-      false,
-    );
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-discard]")?.hidden,
+    ).toBe(false);
   });
 
   it("reveals Retry only when the persisted 429 delay has elapsed", async () => {
@@ -609,8 +656,7 @@ describe("compact Browser Capture popup", () => {
       });
       await Promise.resolve();
       await Promise.resolve();
-      const retryButton =
-        root.querySelector<HTMLButtonElement>("[data-retry]");
+      const retryButton = root.querySelector<HTMLButtonElement>("[data-retry]");
 
       expect(retryButton?.hidden).toBe(true);
       await vi.advanceTimersByTimeAsync(1_999);

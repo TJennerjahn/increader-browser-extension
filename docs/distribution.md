@@ -7,15 +7,17 @@ All commands start from a clean checkout of the release commit.
 ```sh
 npm ci
 npx puppeteer browsers install chrome
-npx puppeteer browsers install firefox
-npm run verify
+npx puppeteer browsers install firefox@stable
+npm run release:verify
 ```
 
-`npm run verify` builds twice and rejects a checksum difference. It then
+`npm run release:verify` builds twice and rejects a checksum difference. It then
 inspects exact archive contents and permissions, runs web-ext lint and
 dependency/license audits, loads the exact Chrome upload ZIP after extraction,
 temporarily installs the exact Firefox upload ZIP after extraction, reloads the
-Firefox runtime, and executes the real-browser core matrix.
+Firefox runtime, runs actual previous-candidate profile upgrades, and executes
+the real-browser Cloud/self-hosted matrix in current Chrome, current Firefox,
+and the checksum-pinned Firefox 140.0 ESR.
 
 ## Chrome load-unpacked
 
@@ -51,18 +53,37 @@ use `about:debugging` → **This Firefox** → **Load Temporary Add-on** and sel
 
 ## AMO unlisted signing and internal distribution
 
-1. Verify checksums and reviewer-source reproducibility.
-2. Run `npm run web-ext:lint`.
-3. Submit `*-firefox-upload.zip` to AMO as an unlisted add-on, attaching
-   `*-firefox-reviewer-source.zip` and the reviewer walkthrough.
-4. Keep the AMO-issued signed XPI outside git and record its SHA-256 beside the
-   release record.
-5. Distribute only the AMO-signed XPI through the maintainer-controlled
-   internal channel.
+Verify checksums, reviewer-source reproducibility, and the pinned command
+surface:
+
+```sh
+npm run signing:check
+mkdir -p dist/signed
+```
+
+The only remaining credentialed step is:
+
+```sh
+WEB_EXT_API_KEY="<AMO JWT issuer>" \
+WEB_EXT_API_SECRET="<AMO JWT secret>" \
+npx web-ext sign \
+  --channel=unlisted \
+  --source-dir dist/production/firefox \
+  --artifacts-dir dist/signed \
+  --upload-source-code \
+  dist/production/increader-browser-extension-0.1.0-firefox-reviewer-source.zip
+```
+
+The pinned `web-ext` packages the exact inspected Firefox directory, uploads
+the human-readable reviewer source, and downloads the AMO-signed XPI. Keep that
+XPI outside git, record its SHA-256 beside the release record, and distribute
+only that signed file through the maintainer-controlled internal channel.
 
 AMO credentials, submission, Mozilla review, signature generation, and signed
 XPI are explicitly external. The repository completes and tests every step
 before that boundary; it never stores vendor credentials or signing keys.
+Mozilla documents `--channel=unlisted` as the self-distribution signing path:
+<https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/#sign-your-extension-for-self-distribution>.
 
 ## Rollback
 

@@ -10,16 +10,16 @@ import {
   type DestinationStore,
   type DiscoveryClient,
   type PairingProtocolClient,
-  type RuntimeOriginPermissions
+  type RuntimeOriginPermissions,
 } from "./pairing";
 
 const validDiscovery = JSON.parse(
   readFileSync(
     fileURLToPath(
-      new URL("../../protocol/fixtures/discovery.valid.json", import.meta.url)
+      new URL("../../protocol/fixtures/discovery.valid.json", import.meta.url),
     ),
-    "utf8"
-  )
+    "utf8",
+  ),
 ) as BrowserCaptureDiscovery;
 
 class MemoryDestinationStore implements DestinationStore {
@@ -43,22 +43,27 @@ class MemoryDestinationStore implements DestinationStore {
 class MemoryPermissions implements RuntimeOriginPermissions {
   constructor(
     public readonly granted: Set<string>,
-    private readonly allowRequests = true
+    private readonly allowRequests = true,
+    private readonly adapt: (pattern: string) => string = (pattern) => pattern,
   ) {}
 
   contains(pattern: string): Promise<boolean> {
-    return Promise.resolve(this.granted.has(pattern));
+    return Promise.resolve(this.granted.has(this.adapt(pattern)));
+  }
+
+  equivalent(firstPattern: string, secondPattern: string): boolean {
+    return this.adapt(firstPattern) === this.adapt(secondPattern);
   }
 
   request(pattern: string): Promise<boolean> {
     if (this.allowRequests) {
-      this.granted.add(pattern);
+      this.granted.add(this.adapt(pattern));
     }
     return Promise.resolve(this.allowRequests);
   }
 
   remove(pattern: string): Promise<void> {
-    this.granted.delete(pattern);
+    this.granted.delete(this.adapt(pattern));
     return Promise.resolve();
   }
 }
@@ -67,14 +72,14 @@ describe("Pairing destination discovery", () => {
   it("replaces the stored origin and leaves only its exact host permission", async () => {
     const store = new MemoryDestinationStore("https://old.example");
     const permissions = new MemoryPermissions(
-      new Set(["https://old.example/*"])
+      new Set(["https://old.example/*"]),
     );
     const discovery: DiscoveryClient = {
       discover: () =>
         Promise.resolve({
           ...validDiscovery,
-          displayName: "My Increader"
-        })
+          displayName: "My Increader",
+        }),
     };
     const pairing = createPairing({ store, permissions, discovery });
 
@@ -83,37 +88,72 @@ describe("Pairing destination discovery", () => {
     expect({
       destination,
       storedOrigin: store.current,
-      grantedOrigins: [...permissions.granted]
+      grantedOrigins: [...permissions.granted],
     }).toEqual({
       destination: {
         origin: "https://new.example",
         displayName: "My Increader",
-        pairingAvailable: true
+        pairingAvailable: true,
       },
       storedOrigin: "https://new.example",
-      grantedOrigins: ["https://new.example/*"]
+      grantedOrigins: ["https://new.example/*"],
     });
   });
+
+  it.each([
+    {
+      browser: "Chrome",
+      adapt: (pattern: string) => pattern,
+      expectedPermission: "http://127.0.0.1:5290/*",
+    },
+    {
+      browser: "Firefox",
+      adapt: (pattern: string) => pattern.replace(/:\d+(?=\/\*)/u, ""),
+      expectedPermission: "http://127.0.0.1/*",
+    },
+  ])(
+    "preserves the replacement grant for same-host ports in $browser",
+    async ({ adapt, expectedPermission }) => {
+      const store = new MemoryDestinationStore("http://127.0.0.1:5289");
+      const permissions = new MemoryPermissions(
+        new Set([adapt("http://127.0.0.1:5289/*")]),
+        true,
+        adapt,
+      );
+      const pairing = createPairing({
+        store,
+        permissions,
+        discovery: {
+          discover: () => Promise.resolve(validDiscovery),
+        },
+      });
+
+      await pairing.discover("http://127.0.0.1:5290");
+
+      expect(store.current).toBe("http://127.0.0.1:5290");
+      expect([...permissions.granted]).toEqual([expectedPermission]);
+    },
+  );
 
   it("keeps the current destination when a replacement is incompatible", async () => {
     const store = new MemoryDestinationStore("https://old.example");
     const permissions = new MemoryPermissions(
-      new Set(["https://old.example/*"])
+      new Set(["https://old.example/*"]),
     );
     const discovery: DiscoveryClient = {
-      discover: () => Promise.reject(new Error("remote body with secrets"))
+      discover: () => Promise.reject(new Error("remote body with secrets")),
     };
     const pairing = createPairing({ store, permissions, discovery });
 
     await expect(pairing.discover("https://broken.example")).rejects.toThrow(
-      "Could not connect to a compatible Increader instance."
+      "Could not connect to a compatible Increader instance.",
     );
     expect({
       storedOrigin: store.current,
-      grantedOrigins: [...permissions.granted]
+      grantedOrigins: [...permissions.granted],
     }).toEqual({
       storedOrigin: "https://old.example",
-      grantedOrigins: ["https://old.example/*"]
+      grantedOrigins: ["https://old.example/*"],
     });
   });
 
@@ -125,12 +165,12 @@ describe("Pairing destination discovery", () => {
       discover: () => {
         contacted = true;
         return Promise.resolve(validDiscovery);
-      }
+      },
     };
     const pairing = createPairing({ store, permissions, discovery });
 
     await expect(pairing.discover("https://reader.example")).rejects.toThrow(
-      "Permission to reach this Increader instance was not granted."
+      "Permission to reach this Increader instance was not granted.",
     );
     expect(contacted).toBe(false);
   });
@@ -149,12 +189,13 @@ describe("Browser Capture Pairing approval", () => {
         expect(request.pathname).toBe("/browser-capture/pairing/approve");
         expect(request.searchParams.get("code_challenge_method")).toBe("S256");
         expect(request.searchParams.get("installation_id")).toBe(
-          "019bf66c-42ac-7c33-b57d-e2131af04fe9"
+          "019bf66c-42ac-7c33-b57d-e2131af04fe9",
         );
         const callback = request.searchParams.get("callback_uri") ?? "";
+        expect(request.searchParams.get("redirect_uri")).toBe(callback);
         const state = request.searchParams.get("state") ?? "";
         return Promise.resolve(`${callback}?code=bcc_approved&state=${state}`);
-      }
+      },
     };
     const protocol: PairingProtocolClient = {
       exchange: (origin, request) => {
@@ -167,26 +208,25 @@ describe("Browser Capture Pairing approval", () => {
           pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
           renewalCredential: "bcr_persisted",
           renewalExpiresInSeconds: 7_776_000,
-          tokenType: "Bearer"
+          tokenType: "Bearer",
         });
       },
       renew: () => Promise.reject(new Error("not used")),
-      revoke: () => Promise.reject(new Error("not used"))
+      revoke: () => Promise.reject(new Error("not used")),
     };
     const pairing = createPairing({
       credentials,
       discovery: {
-        discover: () => Promise.resolve(validDiscovery)
+        discover: () => Promise.resolve(validDiscovery),
       },
       identity,
       installation: {
-        id: () =>
-          Promise.resolve("019bf66c-42ac-7c33-b57d-e2131af04fe9"),
-        name: "Chrome on Linux"
+        id: () => Promise.resolve("019bf66c-42ac-7c33-b57d-e2131af04fe9"),
+        name: "Chrome on Linux",
       },
       permissions,
       protocol,
-      store
+      store,
     });
 
     const paired = await pairing.connect("https://reader.example");
@@ -195,16 +235,18 @@ describe("Browser Capture Pairing approval", () => {
       displayName: "Increader",
       installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
       origin: "https://reader.example",
-      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd"
+      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
     });
     expect(credentials.current).toEqual({
       displayName: "Increader",
       installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
       origin: "https://reader.example",
       pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-      renewalCredential: "bcr_persisted"
+      renewalCredential: "bcr_persisted",
     });
-    expect(JSON.stringify(credentials.current)).not.toContain("bca_memory_only");
+    expect(JSON.stringify(credentials.current)).not.toContain(
+      "bca_memory_only",
+    );
     await expect(pairing.accessToken()).resolves.toBe("bca_memory_only");
   });
 
@@ -216,16 +258,16 @@ describe("Browser Capture Pairing approval", () => {
       installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
       origin: "https://old.example",
       pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-      renewalCredential: "bcr_old"
+      renewalCredential: "bcr_old",
     };
     const permissions = new MemoryPermissions(
-      new Set(["https://old.example/*"])
+      new Set(["https://old.example/*"]),
     );
     const revoked: Array<{ origin: string; renewalCredential: string }> = [];
     const pairing = createPairing({
       credentials,
       discovery: {
-        discover: () => Promise.resolve(validDiscovery)
+        discover: () => Promise.resolve(validDiscovery),
       },
       identity: {
         callbackUri: () =>
@@ -234,13 +276,14 @@ describe("Browser Capture Pairing approval", () => {
           const request = new URL(url);
           const callback = request.searchParams.get("callback_uri") ?? "";
           const state = request.searchParams.get("state") ?? "";
-          return Promise.resolve(`${callback}?code=bcc_new_code&state=${state}`);
-        }
+          return Promise.resolve(
+            `${callback}?code=bcc_new_code&state=${state}`,
+          );
+        },
       },
       installation: {
-        id: () =>
-          Promise.resolve("019bf66c-42ac-7c33-b57d-e2131af04fe9"),
-        name: "Chrome on Linux"
+        id: () => Promise.resolve("019bf66c-42ac-7c33-b57d-e2131af04fe9"),
+        name: "Chrome on Linux",
       },
       permissions,
       protocol: {
@@ -251,18 +294,18 @@ describe("Browser Capture Pairing approval", () => {
             pairingId: "019bf66e-16b5-722e-be5d-b40495258ae4",
             renewalCredential: "bcr_new",
             renewalExpiresInSeconds: 7_776_000,
-            tokenType: "Bearer"
+            tokenType: "Bearer",
           }),
         renew: () => Promise.reject(new Error("not used")),
         revoke: (origin, request) => {
           revoked.push({
             origin,
-            renewalCredential: request.renewalCredential
+            renewalCredential: request.renewalCredential,
           });
           return Promise.resolve();
-        }
+        },
       },
-      store
+      store,
     });
 
     await pairing.connect("https://new.example");
@@ -270,12 +313,12 @@ describe("Browser Capture Pairing approval", () => {
     expect(revoked).toEqual([
       {
         origin: "https://old.example",
-        renewalCredential: "bcr_old"
-      }
+        renewalCredential: "bcr_old",
+      },
     ]);
     expect([...permissions.granted]).toEqual(["https://new.example/*"]);
     expect(credentials.current).toMatchObject({
-      renewalCredential: "bcr_new"
+      renewalCredential: "bcr_new",
     });
   });
 
@@ -287,24 +330,24 @@ describe("Browser Capture Pairing approval", () => {
       installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
       origin: "https://reader.example",
       pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-      renewalCredential: "bcr_before_restart"
+      renewalCredential: "bcr_before_restart",
     };
     const permissions = new MemoryPermissions(
-      new Set(["https://reader.example/*"])
+      new Set(["https://reader.example/*"]),
     );
     const revoked: string[] = [];
     const pairing = createPairing({
       credentials,
       discovery: {
-        discover: () => Promise.reject(new Error("not used"))
+        discover: () => Promise.reject(new Error("not used")),
       },
       identity: {
         callbackUri: () => "",
-        launch: () => Promise.reject(new Error("not used"))
+        launch: () => Promise.reject(new Error("not used")),
       },
       installation: {
         id: () => Promise.reject(new Error("not used")),
-        name: "Firefox on Linux"
+        name: "Firefox on Linux",
       },
       permissions,
       protocol: {
@@ -317,15 +360,15 @@ describe("Browser Capture Pairing approval", () => {
             pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
             renewalCredential: "bcr_after_restart",
             renewalExpiresInSeconds: 7_776_000,
-            tokenType: "Bearer"
+            tokenType: "Bearer",
           });
         },
         revoke: (_origin, request) => {
           revoked.push(request.renewalCredential);
           return Promise.resolve();
-        }
+        },
       },
-      store
+      store,
     });
 
     await expect(pairing.accessToken()).resolves.toBe("bca_after_restart");

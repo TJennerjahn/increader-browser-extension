@@ -3,6 +3,7 @@ import {
   createCredentialStore,
   createDestinationStore,
   createInstallationIdentity,
+  createPairingOperationStore,
   createRuntimeOriginPermissions,
 } from "./browser/chrome-adapters";
 import {
@@ -12,6 +13,8 @@ import {
   registerCaptureNotificationOpen,
 } from "./browser/capture-job-runtime";
 import { createIndexedDbCaptureJobStore } from "./browser/capture-job-store";
+import { registerPairingRuntime } from "./browser/pairing-runtime";
+import { registerPopupKeepAlive } from "./browser/popup-lifetime";
 import { createCaptureJob } from "./capture-job/capture-job";
 import { createCapturePackageAssembler } from "./capture-package/capture-package";
 import { createPairing } from "./pairing/pairing";
@@ -27,6 +30,10 @@ const pairing = createPairing({
   permissions: createRuntimeOriginPermissions(),
   protocol: createPairingHttpClient(),
   store: createDestinationStore(),
+});
+registerPopupKeepAlive();
+registerPairingRuntime(pairing, {
+  operationStore: createPairingOperationStore(),
 });
 const manifest = chrome.runtime.getManifest() as chrome.runtime.ManifestV3 & {
   browser_specific_settings?: unknown;

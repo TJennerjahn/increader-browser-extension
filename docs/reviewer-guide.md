@@ -8,8 +8,8 @@ Increader instance.
 ```sh
 npm ci
 npx puppeteer browsers install chrome
-npx puppeteer browsers install firefox
-npm run verify
+npx puppeteer browsers install firefox@stable
+npm run release:verify
 ```
 
 The Firefox reviewer-source ZIP contains these instructions, the lockfile, all
@@ -35,9 +35,10 @@ does not contain `node_modules` or generated runtime code.
 8. Disconnect. The server pairing, local credential, destination, and runtime
    host grant are removed.
 
-The checked-in real-browser suite automates this core matrix for Chrome and
-Firefox with Cloud and self-hosted protocol fixtures. It also loads or
-temporarily installs the exact upload artifacts.
+The checked-in real-browser suite automates this core matrix for Chrome,
+Firefox 140.0 ESR, and current Firefox with Cloud and self-hosted Increader. It
+also loads or temporarily installs the exact upload artifacts and upgrades
+actual previous-candidate browser profiles.
 
 ## Permissions
 
