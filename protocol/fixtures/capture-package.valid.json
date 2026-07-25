@@ -1,0 +1,23 @@
+{
+  "manifest": {
+    "captureId": "019c0000-0000-7000-8000-000000000001",
+    "capturedAt": "2026-07-25T12:34:56Z",
+    "sourceUrl": "https://example.com/article?view=full",
+    "baseUrl": "https://example.com/article?view=full",
+    "canonicalUrl": "https://example.com/article",
+    "title": "Observed title",
+    "language": "en",
+    "document": {
+      "bytes": 76,
+      "sha256": "8aedb4a951ea6b68e0616f43f022036591ab84e7e4e95c2addc49e4754d1bf92"
+    },
+    "producer": {
+      "extensionVersion": "0.1.0",
+      "browser": "Chrome"
+    },
+    "assets": []
+  },
+  "documentHtml": "<!DOCTYPE html><html><body><article>Captured article</article></body></html>",
+  "createdStatus": 201,
+  "existingStatus": 200
+}

@@ -9,6 +9,7 @@ import type {
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
+import type { BrowserCaptureImporter } from "../capture-package/importer";
 import { CLOUD_INSTANCE_ORIGIN, mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
@@ -294,6 +295,47 @@ describe("compact Browser Capture popup", () => {
 
     await vi.waitFor(() => {
       expect(authorized).toEqual([second]);
+    });
+  });
+
+  it("captures and transfers the revalidated page after explicit Import", async () => {
+    const page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/live",
+      tabId: 24,
+      title: "Live article",
+    };
+    const importPage = vi.fn().mockResolvedValue({
+      bookmarkId: 84,
+      created: true,
+      title: "Extracted article",
+    });
+    const importer: BrowserCaptureImporter = { importPage };
+    const root = document.createElement("main");
+
+    mountPopup(root, paired(), {
+      activePage: inspector(page),
+      importer,
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+      openReader: vi.fn(),
+    });
+    await vi.waitFor(() => {
+      expect(getByText(root, "Ready")).toBeTruthy();
+    });
+
+    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+
+    await vi.waitFor(() => {
+      expect(importPage).toHaveBeenCalledWith(
+        page,
+        "https://reader.example",
+        "bca_memory",
+      );
+      expect(getByText(root, "Imported")).toBeTruthy();
+      expect(getByText(root, "Extracted article")).toBeTruthy();
+      expect(
+        getByRole(root, "button", { name: "Open Reader" }),
+      ).toBeTruthy();
     });
   });
 });

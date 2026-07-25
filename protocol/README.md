@@ -30,3 +30,10 @@ access token and compares one fragment-free Capture Source URL exactly. It
 returns only `exists` plus an owned Bookmark identifier/title when present; it
 is not a library search or URL-equivalence API. The source URL travels in a
 minimal POST body so it does not enter ordinary request targets or access logs.
+
+Text-only Browser Capture import sends one immutable unversioned package as
+`multipart/form-data` with JSON `manifest` and UTF-8 `document` parts. The
+extension allocates a Capture ID only after explicit Import, stages the
+normalized live top-level DOM, and supplies no captured image binary parts in
+this slice. Increader returns its normal `BookmarkResponse` with `201` for a
+created Bookmark or `200` for the recorded existing/replay outcome.

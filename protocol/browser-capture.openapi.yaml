@@ -154,6 +154,71 @@ paths:
           description: Invalid or fragment-bearing Capture Source URL
         "401":
           description: Invalid or expired Browser Capture Access Token
+  /api/browser-capture/captures:
+    post:
+      operationId: importBrowserCapturePackage
+      summary: Import one immutable Capture Package
+      description: |
+        Accepts one atomic text-only Capture Package from the calling Pairing.
+        The Capture Source URL remains Bookmark identity while canonical and
+        base URLs are metadata/resolution hints. Capture ID idempotency is
+        scoped to the paired User and logical package fingerprint.
+      security:
+        - browserCaptureAccess: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - manifest
+                - document
+              properties:
+                manifest:
+                  $ref: "#/components/schemas/BrowserCapturePackageManifest"
+                document:
+                  type: string
+                  format: binary
+                  description: UTF-8 inert top-level live DOM snapshot.
+            encoding:
+              manifest:
+                contentType: application/json
+              document:
+                contentType: text/html;charset=utf-8
+      responses:
+        "201":
+          description: A normal Bookmark was created
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+        "200":
+          description: The normal existing Bookmark outcome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookmarkResponse"
+        "400":
+          description: The complete Capture Package is invalid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureProblem"
+        "401":
+          description: Invalid or expired Browser Capture Access Token
+        "409":
+          description: Capture ID was used for different logical content
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/BrowserCaptureProblem"
   /api/browser-capture/pairings:
     get:
       operationId: listBrowserCapturePairings
@@ -389,6 +454,123 @@ components:
           format: uri
           maxLength: 8192
           description: Fragment-free top-level HTTP(S) Capture Source URL.
+    BrowserCapturePackageManifest:
+      type: object
+      required:
+        - captureId
+        - capturedAt
+        - sourceUrl
+        - baseUrl
+        - document
+        - producer
+        - assets
+      properties:
+        captureId:
+          type: string
+          format: uuid
+          description: Globally unique identity allocated for one Import authorization.
+        capturedAt:
+          type: string
+          format: date-time
+        sourceUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: Final fragment-free top-level HTTP(S) Bookmark identity.
+        baseUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: Absolute HTTP(S) base used only to resolve captured references.
+        canonicalUrl:
+          type: string
+          format: uri
+          maxLength: 8192
+          description: Optional validated publisher hint; never Bookmark identity.
+        title:
+          type: string
+          maxLength: 1024
+          description: Observed fallback hint; Article Extraction remains authoritative.
+        language:
+          type: string
+          maxLength: 35
+          pattern: "^[A-Za-z0-9-]+$"
+        document:
+          $ref: "#/components/schemas/BrowserCaptureDocumentDigest"
+        producer:
+          $ref: "#/components/schemas/BrowserCaptureProducer"
+        assets:
+          type: array
+          maxItems: 0
+          items: {}
+          description: Text-only slice supplies no captured image binaries.
+      additionalProperties: true
+    BrowserCaptureDocumentDigest:
+      type: object
+      additionalProperties: false
+      required:
+        - bytes
+        - sha256
+      properties:
+        bytes:
+          type: integer
+          minimum: 1
+          maximum: 5242880
+        sha256:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+    BrowserCaptureProducer:
+      type: object
+      additionalProperties: false
+      required:
+        - extensionVersion
+        - browser
+      properties:
+        extensionVersion:
+          type: string
+          minLength: 1
+          maxLength: 128
+        browser:
+          type: string
+          minLength: 1
+          maxLength: 128
+    BookmarkResponse:
+      type: object
+      required:
+        - id
+        - url
+        - title
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+      additionalProperties: true
+      description: Existing normal Increader BookmarkResponse; no Capture metadata.
+    BrowserCaptureProblem:
+      type: object
+      required:
+        - title
+        - status
+        - code
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+          enum:
+            - capture_package_invalid
+            - capture_id_conflict
+      additionalProperties: true
     BrowserCaptureDiscovery:
       type: object
       required:

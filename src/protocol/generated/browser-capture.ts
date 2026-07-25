@@ -135,6 +135,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/browser-capture/captures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import one immutable Capture Package
+         * @description Accepts one atomic text-only Capture Package from the calling Pairing.
+         *     The Capture Source URL remains Bookmark identity while canonical and
+         *     base URLs are metadata/resolution hints. Capture ID idempotency is
+         *     scoped to the paired User and logical package fingerprint.
+         */
+        post: operations["importBrowserCapturePackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/browser-capture/pairings": {
         parameters: {
             query?: never;
@@ -249,6 +272,66 @@ export interface components {
              * @description Fragment-free top-level HTTP(S) Capture Source URL.
              */
             sourceUrl: string;
+        };
+        BrowserCapturePackageManifest: {
+            /**
+             * Format: uuid
+             * @description Globally unique identity allocated for one Import authorization.
+             */
+            captureId: string;
+            /** Format: date-time */
+            capturedAt: string;
+            /**
+             * Format: uri
+             * @description Final fragment-free top-level HTTP(S) Bookmark identity.
+             */
+            sourceUrl: string;
+            /**
+             * Format: uri
+             * @description Absolute HTTP(S) base used only to resolve captured references.
+             */
+            baseUrl: string;
+            /**
+             * Format: uri
+             * @description Optional validated publisher hint; never Bookmark identity.
+             */
+            canonicalUrl?: string;
+            /** @description Observed fallback hint; Article Extraction remains authoritative. */
+            title?: string;
+            language?: string;
+            document: components["schemas"]["BrowserCaptureDocumentDigest"];
+            producer: components["schemas"]["BrowserCaptureProducer"];
+            /** @description Text-only slice supplies no captured image binaries. */
+            assets: unknown[];
+        } & {
+            [key: string]: unknown;
+        };
+        BrowserCaptureDocumentDigest: {
+            bytes: number;
+            sha256: string;
+        };
+        BrowserCaptureProducer: {
+            extensionVersion: string;
+            browser: string;
+        };
+        /** @description Existing normal Increader BookmarkResponse; no Capture metadata. */
+        BookmarkResponse: {
+            id: number;
+            /** Format: uri */
+            url: string;
+            title: string;
+        } & {
+            [key: string]: unknown;
+        };
+        BrowserCaptureProblem: {
+            type?: string;
+            title: string;
+            status: number;
+            detail?: string;
+            /** @enum {string} */
+            code: "capture_package_invalid" | "capture_id_conflict";
+        } & {
+            [key: string]: unknown;
         };
         BrowserCaptureDiscovery: {
             /**
@@ -502,6 +585,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    importBrowserCapturePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    manifest: components["schemas"]["BrowserCapturePackageManifest"];
+                    /**
+                     * Format: binary
+                     * @description UTF-8 inert top-level live DOM snapshot.
+                     */
+                    document: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The normal existing Bookmark outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkResponse"];
+                };
+            };
+            /** @description A normal Bookmark was created */
+            201: {
+                headers: {
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkResponse"];
+                };
+            };
+            /** @description The complete Capture Package is invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
+                };
+            };
+            /** @description Invalid or expired Browser Capture Access Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Capture ID was used for different logical content */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
+                };
             };
         };
     };

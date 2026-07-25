@@ -1,13 +1,14 @@
 {
   "sourceRepository": "TJennerjahn/Increader",
-  "sourceCommit": "b1ffff7fae294198004d90669fb095a56025b8e6",
+  "sourceCommit": "c17d7b30bb531e6e7eb4a18617c049f58efa2df9",
   "generator": "openapi-typescript@7.13.0",
   "files": {
-    "browser-capture.openapi.yaml": "ac8b0ad3cdc87ce4c8448551ab28f2d65ebb2469f3e7e1d29c062f13dad86404",
+    "browser-capture.openapi.yaml": "f11b7e6cd27dc03eda3a5939c66c85742f4627670680bfd2b3c0e5335fcc7d23",
     "fixtures/discovery.valid.json": "8ee24a4ba26489e62f3cfc7042c473d5a8e209694e69e6af26704c35112c1f53",
     "fixtures/discovery.invalid.json": "e7e3cf868866c2ba51097b850e48e18cbb07e8a86351ce991eb56f4e0bfdfeeb",
     "fixtures/pairing.valid.json": "9521217fda2e463b89e9ab3fe71e71ff4a5ace12468f43379582a4b9784f2605",
     "fixtures/pairing.invalid.json": "623930e58d0c6900aa6790c882fdea20bbf15b9fc089790449ba000cca9b4d00",
-    "fixtures/bookmark-lookup.valid.json": "09075f223c7fc84109d0c9b9734349e890a5db5cae80f08d6293292cba983e91"
+    "fixtures/bookmark-lookup.valid.json": "09075f223c7fc84109d0c9b9734349e890a5db5cae80f08d6293292cba983e91",
+    "fixtures/capture-package.valid.json": "6082ab6e1ede2dd3f3f3d1e18b4f7d06bf3b5b0f810d2c76906a1a26130ee273"
   }
 }

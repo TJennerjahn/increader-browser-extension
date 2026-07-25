@@ -4,11 +4,13 @@ import type {
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
+import type { BrowserCaptureImporter } from "../capture-package/importer";
 
 export const CLOUD_INSTANCE_ORIGIN = "https://app.increader.com";
 
 export interface PopupPageDependencies {
   activePage: ActivePageInspector;
+  importer?: BrowserCaptureImporter;
   lookup: BookmarkLookupClient;
   openReader(url: string): Promise<void>;
 }
@@ -80,7 +82,8 @@ export function mountPopup(
       <p class="privacy-note">
         Before Import, only the active page title, URL, and document type are
         read. Only the URL is sent to your paired Increader for Bookmark Lookup;
-        page content is not read or sent.
+        page content is not read or sent. Import reads the rendered page and
+        sends it only to that paired Increader instance.
       </p>
     </section>
   `;
@@ -287,7 +290,7 @@ export function mountPopup(
         if (!disposed) showDisconnected();
       })
       .catch(() => {
-        if (disposed) return;
+        if (isDisposed()) return;
         status.textContent = "Could not disconnect";
         detail.textContent =
           "Increader could not revoke this installation. Try again.";
@@ -304,6 +307,7 @@ export function mountPopup(
       return;
     }
     const expectedPage = currentPage;
+    const destinationOrigin = pairedDestination.origin;
     importButton.disabled = true;
     void pageDependencies.activePage
       .inspect()
@@ -335,12 +339,31 @@ export function mountPopup(
             detail: freshPage,
           }),
         );
-      })
-      .catch(() => {
+        if (pageDependencies.importer === undefined) {
+          return;
+        }
+        const accessToken = await pairing.accessToken();
+        const outcome = await pageDependencies.importer.importPage(
+          freshPage,
+          destinationOrigin,
+          accessToken,
+        );
         if (isDisposed()) return;
-        pageStatus.textContent = "Page changed";
+        existingBookmarkId = outcome.bookmarkId;
+        pageStatus.textContent = outcome.created
+          ? "Imported"
+          : "Already in Increader";
+        pageDetail.textContent = outcome.title;
+        openReaderButton.hidden = false;
+      })
+      .catch((error: unknown) => {
+        if (isDisposed()) return;
+        importActive = false;
+        pageStatus.textContent = "Needs attention";
         pageDetail.textContent =
-          "Inspect the current page and choose Import again.";
+          error instanceof Error
+            ? error.message
+            : "Inspect the current page and choose Import again.";
         importButton.disabled = false;
       });
   };
