@@ -9,7 +9,7 @@
 | Both compatibility directions and protocol regeneration            | `protocol/compatibility/`; `compatibility.test.ts`; `npm run protocol:check`; Increader `BrowserCaptureCompatibilityFixtureTest` |
 | Deterministic artifact set under one numeric version               | `scripts/build.mjs`; `npm run build:reproducible`                                                                                |
 | Runtime archive content and size policy                            | `scripts/inspect-build.mjs`                                                                                                      |
-| CI audit, permission, protocol, browser-load gates                 | `.github/workflows/ci.yml`; `npm run verify`                                                                                     |
+| CI audit, permission, protocol, browser-load gates                 | `.github/workflows/ci.yml`; Increader `browser-capture-discovery.yml`; `npm run verify`                                          |
 | License, privacy, listing, assets, reviewer and support material   | `LICENSE`; `SUPPORT.md`; `docs/`; `release/assets/`; release metadata output                                                     |
 | Chrome, Firefox, and AMO runbooks through non-secret boundary      | `docs/distribution.md`; `npm run signing:check`; `runbook-exercise.md`                                                           |
 | No P0/P1, leak, mismatch, drift, quarantine, or untraced criterion | live query recorded in `release-verification.md`; all rows above are blocking gates                                              |
