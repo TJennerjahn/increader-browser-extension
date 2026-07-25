@@ -23,8 +23,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes xvfb xdotool
-          npx puppeteer browsers install chrome --install-deps
-          npx puppeteer browsers install firefox@stable --install-deps
+          npx puppeteer browsers install chrome
+          npx puppeteer browsers install firefox@stable
       - name: Lint, test, audit, verify protocol, and smoke exact packages
         run: xvfb-run -a npm run verify
       - uses: actions/upload-artifact@v4
@@ -79,8 +79,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes xvfb xdotool
-          npx puppeteer browsers install chrome --install-deps
-          npx puppeteer browsers install firefox@stable --install-deps
+          npx puppeteer browsers install chrome
+          npx puppeteer browsers install firefox@stable
       - name: Run exact Chrome, Firefox, Cloud, self-hosted, and ESR matrix
         env:
           INCREADER_REPOSITORY: ${{ github.workspace }}/Increader
