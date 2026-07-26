@@ -63,13 +63,14 @@ justification in [permissions.md](permissions.md).
 ## Assets
 
 Checked-in masters are under `release/assets/`. The 1280 × 800 listing
-screenshot contains the actual 0.1.0 production popup rendered by Chrome for
-Testing 150 in its disconnected state; the surrounding explanatory canvas and
-the 440 × 280 promotional image contain only release artwork. A clean release
-build emits:
+screenshot and 440 × 280 promotional image are image-generated marketing
+artwork based on the Increader identity and Browser Capture workflow. A clean
+release build copies these raster masters without programmatically composing
+new artwork and emits:
 
 - `listing/screenshot-1280x800.png`
 - `listing/chrome-promo-440x280.png`
 - 16, 32, 48, and 128 pixel runtime icons
 
-Neither asset contains User or publisher content.
+The interface shown is illustrative. Neither asset contains User or publisher
+content.

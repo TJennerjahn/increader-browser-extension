@@ -13,7 +13,6 @@
     "browser:test": "node scripts/browser-smoke.mjs",
     "browser:test:matrix": "npm run browser:test",
     "build:reproducible": "node scripts/check-reproducible.mjs",
-    "capture:listing": "node scripts/capture-listing-screenshot.mjs",
     "dependency:audit": "npm audit --omit=dev --audit-level=high && node scripts/license-audit.mjs",
     "lint": "eslint . --max-warnings=0",
     "release:static": "npm run build:reproducible && npm run inspect && npm run web-ext:lint && npm run dependency:audit && npm run signing:check",

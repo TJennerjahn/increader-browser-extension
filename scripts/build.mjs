@@ -108,9 +108,10 @@ async function buildReleaseBundle() {
       path.join(repositoryRoot, "release", "assets", "listing-screenshot.png"),
       path.join(listingRoot, "screenshot-1280x800.png"),
     ),
-    sharp(path.join(repositoryRoot, "release", "assets", "chrome-promo.svg"))
-      .png({ adaptiveFiltering: false, compressionLevel: 9 })
-      .toFile(path.join(listingRoot, "chrome-promo-440x280.png")),
+    cp(
+      path.join(repositoryRoot, "release", "assets", "chrome-promo.png"),
+      path.join(listingRoot, "chrome-promo-440x280.png"),
+    ),
   ]);
 
   const reviewerEntries = await reviewerSourceEntries();
