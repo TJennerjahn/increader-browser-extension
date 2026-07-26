@@ -1,4 +1,4 @@
-# Increader Browser Extension
+# Increader
 
 The public Chrome and Firefox Browser Capture extension for
 [Increader](https://app.increader.com). One TypeScript/WebExtensions source tree

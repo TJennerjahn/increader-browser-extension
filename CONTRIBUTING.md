@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Increader Browser Capture.
+Thanks for helping improve the Increader browser extension.
 
 ## Before opening a change
 

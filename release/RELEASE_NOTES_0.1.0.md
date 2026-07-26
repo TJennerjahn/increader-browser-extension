@@ -1,4 +1,4 @@
-# Increader Browser Capture 0.1.0
+# Increader 0.1.0
 
 Initial internal release for Chrome and Firefox 140+.
 

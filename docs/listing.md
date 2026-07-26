@@ -2,7 +2,7 @@
 
 ## Name
 
-Increader Browser Capture
+Increader
 
 ## Summary
 
@@ -10,8 +10,8 @@ Sign in and send the page you choose to Increader for focused reading.
 
 ## Description
 
-Increader Browser Capture is a compact, user-triggered utility for saving the
-currently open HTML page to Increader.
+Increader is a compact, user-triggered browser extension for saving the
+currently open HTML page for reading in Increader.
 
 Sign in to Increader Cloud with Google or email and password. Use the cog to
 select one self-hosted Increader instance and sign in with its normal

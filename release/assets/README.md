@@ -10,7 +10,7 @@
 in Chrome for Testing 150.0.7871.24. Its popup pixels are the real production
 disconnected UI; the surrounding checked-in canvas contains explanatory
 release copy only. Its SHA-256 is
-`25b3e79f9bf836e043c84413be6e2cf6926f9e0ffddab50f2b2492d374119c5c`.
+`4b087284e62e89c299cc0d01965d15cd9be79924fa557c3e48857b2142e833f9`.
 
 `chrome-promo.svg` is synthetic release artwork. Its SHA-256 is
 `3a105ac2ab9debe705861bdb51f237f1f0be114038f2da4d0d27b715376b573d`.

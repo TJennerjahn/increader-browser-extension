@@ -33,7 +33,7 @@ export function mountPopup(
   connectionOriginPreference?: ConnectionOriginPreference,
 ): () => void {
   root.innerHTML = `
-    <section class="popup-shell" aria-label="Increader Browser Capture">
+    <section class="popup-shell" aria-label="Increader">
       <header class="popup-header">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">

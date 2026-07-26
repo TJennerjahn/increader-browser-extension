@@ -55,7 +55,7 @@ try {
   });
   const extension = await waitFor(async () =>
     [...(await browser.extensions()).values()].find(
-      (candidate) => candidate.name === "Increader Browser Capture",
+      (candidate) => candidate.name === "Increader",
     ),
   );
   const popup = await browser.newPage();
@@ -66,7 +66,8 @@ try {
   await popup.goto(`chrome-extension://${extension.id}/popup.html`);
   await popup.waitForFunction(
     () =>
-      document.querySelector("[data-status]")?.textContent === "Signed out",
+      document.querySelector("#app")?.getAttribute("aria-busy") === "false" &&
+      document.querySelector("[data-login-view]")?.hidden === false,
   );
   const body = await popup.$("body");
   if (body === null) throw new Error("Production popup body was unavailable");
@@ -96,7 +97,7 @@ try {
       <text x="94" y="408" font-family="Arial, sans-serif" font-size="27"
         fill="#475569">Import only when you decide.</text>
       <text x="94" y="516" font-family="Arial, sans-serif" font-size="20"
-        font-weight="700" fill="#4338ca">INCREADER BROWSER CAPTURE</text>
+        font-weight="700" fill="#4338ca">INCREADER</text>
       <rect x="${String(popupLeft - 18)}" y="${String(popupTop - 18)}"
         width="${String(popupWidth + 36)}" height="${String(popupHeight + 36)}"
         rx="20" fill="#c7d2fe"/>

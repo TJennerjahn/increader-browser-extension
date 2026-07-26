@@ -215,7 +215,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     expect(create).toHaveBeenCalledWith(
       "browser-capture-failure-019bf66c-42ac-7c33-b57d-e2131af04fe9",
       expect.objectContaining({
-        title: "Browser Capture needs attention",
+        title: "Increader needs attention",
         message: "The previous transfer was interrupted.",
         requireInteraction: true,
       }),

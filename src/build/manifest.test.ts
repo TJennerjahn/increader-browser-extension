@@ -38,12 +38,16 @@ describe("production manifests", () => {
     expect(typeof publicKey).toBe("string");
     if (typeof publicKey !== "string") return;
     expect({
+      name: chrome.name,
+      defaultTitle: (chrome.action as Record<string, unknown>).default_title,
       extensionId: chromeExtensionId(publicKey),
       permissions: chrome.permissions,
       hostPermissions: chrome.host_permissions,
       optionalHostPermissions: chrome.optional_host_permissions,
       incognito: chrome.incognito,
     }).toEqual({
+      name: "Increader",
+      defaultTitle: "Increader",
       extensionId: "haipjkpamjpojalajcgfeggbjhifjpnn",
       permissions: requiredPermissions,
       hostPermissions: requiredCloudOrigins,
@@ -60,6 +64,8 @@ describe("production manifests", () => {
     };
 
     expect({
+      name: firefox.name,
+      defaultTitle: (firefox.action as Record<string, unknown>).default_title,
       id: settings.gecko.id,
       minimum: settings.gecko.strict_min_version,
       android: settings.gecko_android,
@@ -69,6 +75,8 @@ describe("production manifests", () => {
       optionalHostPermissions: firefox.optional_host_permissions,
       incognito: firefox.incognito,
     }).toEqual({
+      name: "Increader",
+      defaultTitle: "Increader",
       id: "browser-capture@increader.com",
       minimum: "140.0",
       android: undefined,

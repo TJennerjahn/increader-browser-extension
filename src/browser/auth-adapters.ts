@@ -516,7 +516,7 @@ function activeCloudAccount(body: unknown): {
   const email = stringProperty(primaryEmail, "email_address");
   if (sessionId === null || email === null) {
     throw new Error(
-      "Finish Google sign-in in the opened tab, then open Browser Capture again.",
+      "Finish Google sign-in in the opened tab, then open Increader again.",
     );
   }
   return { email, sessionId };
@@ -549,7 +549,7 @@ function waitForChangedCookie(
         cookies.onChanged.removeListener(onChanged);
         reject(
           new Error(
-            "Google sign-in timed out. Finish it and open Browser Capture again.",
+            "Google sign-in timed out. Finish it and open Increader again.",
           ),
         );
       },

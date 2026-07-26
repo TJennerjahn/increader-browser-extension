@@ -147,7 +147,7 @@ export function createCaptureFailureNotifier(
         {
           type: "basic",
           iconUrl: chrome.runtime.getURL("notification.svg"),
-          title: "Browser Capture needs attention",
+          title: "Increader needs attention",
           message,
           requireInteraction: true,
         },
@@ -344,7 +344,7 @@ function updateAction(
           ? { badge: "", color: "#64748b", title: "Imported to Increader" }
           : state.phase === "failed"
             ? { badge: "!", color: "#b91c1c", title: "Needs attention" }
-            : { badge: "", color: "#64748b", title: "Browser Capture" };
+            : { badge: "", color: "#64748b", title: "Increader" };
   void action.setBadgeText({ text: presentation.badge }).catch(() => undefined);
   void action
     .setBadgeBackgroundColor({ color: presentation.color })

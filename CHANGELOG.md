@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Increader Browser Capture are documented here.
+All notable changes to the Increader browser extension are documented here.
 
 ## 0.1.0 — 2026-07-25
 
