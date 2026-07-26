@@ -532,6 +532,26 @@ h1 {
   stroke-width: 2.2;
 }
 
+.btn.page-open-action {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  flex: none;
+  padding: 0;
+  border-radius: 8px;
+  color: oklch(var(--su));
+}
+
+.page-open-action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .page-title {
   margin: 0;
   overflow: hidden;
@@ -543,6 +563,41 @@ h1 {
   white-space: nowrap;
 }
 
+.page-card[data-state="existing"] .card-body {
+  gap: 10px;
+  padding: 16px;
+}
+
+.page-card[data-state="existing"] .page-heading {
+  align-items: flex-start;
+}
+
+.page-card[data-state="existing"] .eyebrow {
+  display: none;
+}
+
+.page-card[data-state="existing"] .page-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.page-card[data-state="existing"] .page-favicon {
+  width: 24px;
+  height: 24px;
+}
+
+.page-card[data-state="existing"] .page-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 16.5px;
+  line-height: 1.35;
+  text-overflow: initial;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .page-source {
   margin: 1px 0 0 44px;
   overflow: hidden;
@@ -551,6 +606,12 @@ h1 {
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.page-card[data-state="existing"] .page-source {
+  margin: 1px 40px 0 52px;
+  color: oklch(var(--bc) / 0.58);
+  font-size: 12px;
 }
 
 .page-feedback {
@@ -574,6 +635,10 @@ h1 {
   background: oklch(var(--p));
 }
 
+.page-card[data-state="existing"] .feedback-dot {
+  display: none;
+}
+
 .page-status {
   margin: 0;
   color: oklch(var(--bc));
@@ -594,6 +659,10 @@ h1 {
   display: grid;
   gap: 7px;
   grid-template-columns: 1fr 1fr;
+}
+
+.page-actions:not(:has(> :not([hidden]))) {
+  display: none;
 }
 
 .page-actions > :only-child {

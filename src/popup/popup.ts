@@ -198,6 +198,7 @@ export function mountPopup(
       <section
         class="page-card card card-surface"
         data-page-card
+        data-state="page"
         aria-live="polite"
         hidden
       >
@@ -260,6 +261,20 @@ export function mountPopup(
               <p class="eyebrow">Current page</p>
               <h2 class="page-title" data-page-title>Inspecting…</h2>
             </div>
+            <button
+              class="page-open-action btn btn-ghost"
+              type="button"
+              data-open-reader
+              aria-label="Open bookmark"
+              title="Open bookmark"
+              hidden
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 4h5v5"></path>
+                <path d="m20 4-9 9"></path>
+                <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"></path>
+              </svg>
+            </button>
           </div>
           <p class="page-source" data-page-source></p>
           <div class="page-feedback" data-page-feedback>
@@ -280,14 +295,6 @@ export function mountPopup(
               disabled
             >
               Import
-            </button>
-            <button
-              class="secondary-action btn btn-outline"
-              type="button"
-              data-open-reader
-              hidden
-            >
-              Open bookmark
             </button>
             <button
               class="secondary-action btn btn-ghost"
@@ -455,6 +462,7 @@ export function mountPopup(
   const renderBookmarkActions = (): void => {
     const hasOpenableBookmark =
       existingBookmarkId !== null && readerOrigin !== null;
+    pageCard.dataset.state = hasOpenableBookmark ? "existing" : "page";
     importButton.hidden = hasOpenableBookmark;
     openReaderButton.hidden = !hasOpenableBookmark;
   };
@@ -592,6 +600,7 @@ export function mountPopup(
       return;
     }
     pageCard.hidden = false;
+    pageCard.dataset.state = "page";
     renderPageFavicon(inspected.faviconUrl);
     existingBookmarkId = null;
     readerOrigin = null;
@@ -653,6 +662,8 @@ export function mountPopup(
         pageCanImport = false;
         existingBookmarkId = result.bookmarkId;
         readerOrigin = origin;
+        pageTitle.textContent = result.title || inspected.title || "Untitled page";
+        pageSource.textContent = "Already in Increader";
         pageStatus.textContent = "";
         pageDetail.textContent = "";
         renderJobState(currentJobState);
@@ -672,6 +683,7 @@ export function mountPopup(
     }
     const generation = ++pageGeneration;
     pageCard.hidden = false;
+    pageCard.dataset.state = "page";
     renderPageFavicon();
     pageTitle.textContent = "Inspecting…";
     pageSource.textContent = "";
@@ -1008,6 +1020,8 @@ export function mountPopup(
       pageCanImport = false;
       existingBookmarkId = next.bookmarkId;
       readerOrigin = next.origin;
+      pageTitle.textContent = next.title;
+      pageSource.textContent = "Already in Increader";
       renderPageIconState("completed");
       pageFeedback.hidden = true;
       pageStatus.textContent = "";

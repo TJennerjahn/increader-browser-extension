@@ -525,11 +525,16 @@ describe("compact Browser Capture popup", () => {
       expect(openBookmarkButton?.hidden).toBe(false);
     });
     expect(root.querySelector("[data-existing-bookmark-notice]")).toBeNull();
-    expect(root.textContent).not.toContain("Already in Increader");
-    expect(root.textContent).not.toContain("My Saved Title");
+    expect(root.textContent).toContain("Already in Increader");
+    expect(root.textContent).toContain("My Saved Title");
     expect(
       root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
     ).toBe(true);
+    expect(
+      root.querySelector<HTMLElement>("[data-page-card]")?.dataset.state,
+    ).toBe("existing");
+    expect(openBookmarkButton?.closest(".page-heading")).not.toBeNull();
+    expect(openBookmarkButton?.textContent.trim()).toBe("");
     expect(openReader).not.toHaveBeenCalled();
     expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
       true,
@@ -766,6 +771,11 @@ describe("compact Browser Capture popup", () => {
     expect(pageFeedback?.hidden).toBe(true);
     expect(favicon?.hidden).toBe(true);
     expect(successIcon?.hasAttribute("hidden")).toBe(false);
+    expect(root.textContent).toContain("Extracted article");
+    expect(root.textContent).toContain("Already in Increader");
+    expect(
+      root.querySelector<HTMLElement>("[data-page-card]")?.dataset.state,
+    ).toBe("existing");
     expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
       true,
     );
