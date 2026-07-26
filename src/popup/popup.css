@@ -460,35 +460,51 @@ h1 {
   background: oklch(var(--b2));
 }
 
-.page-icon::before {
-  position: absolute;
-  inset: 0;
-  border: 2px solid transparent;
-  border-radius: inherit;
-  content: "";
-  pointer-events: none;
-}
-
-.page-icon[data-state="loading"]::before {
-  border-color: oklch(var(--p) / 0.2);
-  border-top-color: oklch(var(--p));
-  animation: page-icon-spin 850ms linear infinite;
-}
-
 .page-icon[data-state="completed"] {
   color: oklch(var(--p));
   background: oklch(var(--p) / 0.1);
 }
 
-@keyframes page-icon-spin {
+.page-icon .page-icon-progress {
+  position: absolute;
+  inset: 0;
+  width: 34px;
+  height: 34px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.page-icon-progress rect {
+  fill: none;
+  stroke-width: 2;
+}
+
+.page-icon-progress-track {
+  stroke: oklch(var(--p) / 0.2);
+}
+
+.page-icon-progress-indicator {
+  stroke: oklch(var(--p));
+  stroke-linecap: round;
+}
+
+.page-icon[data-state="loading"] .page-icon-progress {
+  opacity: 1;
+}
+
+.page-icon[data-state="loading"] .page-icon-progress-indicator {
+  animation: page-icon-progress 850ms linear infinite;
+}
+
+@keyframes page-icon-progress {
   to {
-    transform: rotate(1turn);
+    stroke-dashoffset: -100;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-icon[data-state="loading"]::before {
-    border-color: oklch(var(--p));
+  .page-icon[data-state="loading"] .page-icon-progress-indicator {
+    stroke-dasharray: none;
     animation: none;
   }
 }

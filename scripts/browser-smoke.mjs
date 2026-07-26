@@ -53,6 +53,26 @@ try {
       .querySelector("#self-hosted-origin")
       ?.getAttribute("value"),
     password: document.querySelector("#login-password")?.getAttribute("type"),
+    progress: (() => {
+      const icon = document.querySelector("[data-page-icon]");
+      const indicator = document.querySelector(
+        "[data-page-progress-indicator]",
+      );
+      if (
+        !(icon instanceof HTMLElement) ||
+        !(indicator instanceof SVGElement)
+      ) {
+        return null;
+      }
+      icon.dataset.state = "loading";
+      return {
+        animationName: globalThis.getComputedStyle(indicator).animationName,
+        dashArray: indicator.getAttribute("stroke-dasharray"),
+        pathLength: indicator.getAttribute("pathLength"),
+        rotatingBorderAnimation: globalThis.getComputedStyle(icon, "::before")
+          .animationName,
+      };
+    })(),
     settingsHidden: document.querySelector("[data-settings-view]")?.hidden,
   }));
   if (
@@ -62,6 +82,10 @@ try {
     form.google !== "Continue with Google" ||
     form.loginHidden !== false ||
     form.password !== "password" ||
+    form.progress?.animationName !== "page-icon-progress" ||
+    form.progress.dashArray !== "22 78" ||
+    form.progress.pathLength !== "100" ||
+    form.progress.rotatingBorderAnimation !== "none" ||
     form.origin !== "https://app.increader.com" ||
     form.settingsHidden !== true
   ) {

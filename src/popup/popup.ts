@@ -237,6 +237,32 @@ export function mountPopup(
               >
                 <path d="m6.5 12.5 3.5 3.5 7.5-8"></path>
               </svg>
+              <svg
+                class="page-icon-progress"
+                viewBox="0 0 34 34"
+                aria-hidden="true"
+              >
+                <rect
+                  class="page-icon-progress-track"
+                  x="1"
+                  y="1"
+                  width="32"
+                  height="32"
+                  rx="7"
+                  pathLength="100"
+                ></rect>
+                <rect
+                  class="page-icon-progress-indicator"
+                  data-page-progress-indicator
+                  x="1"
+                  y="1"
+                  width="32"
+                  height="32"
+                  rx="7"
+                  pathLength="100"
+                  stroke-dasharray="22 78"
+                ></rect>
+              </svg>
             </span>
             <div class="page-copy">
               <p class="eyebrow">Current page</p>
