@@ -72,7 +72,6 @@ body {
 
 body {
   width: 384px;
-  min-height: 320px;
   color: oklch(var(--bc));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -449,6 +448,7 @@ h1 {
 }
 
 .page-icon {
+  position: relative;
   display: grid;
   width: 34px;
   height: 34px;
@@ -458,6 +458,39 @@ h1 {
   border-radius: 8px;
   color: oklch(var(--bc) / 0.48);
   background: oklch(var(--b2));
+}
+
+.page-icon::before {
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.page-icon[data-state="loading"]::before {
+  border-color: oklch(var(--p) / 0.2);
+  border-top-color: oklch(var(--p));
+  animation: page-icon-spin 850ms linear infinite;
+}
+
+.page-icon[data-state="completed"] {
+  color: oklch(var(--p));
+  background: oklch(var(--p) / 0.1);
+}
+
+@keyframes page-icon-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-icon[data-state="loading"]::before {
+    border-color: oklch(var(--p));
+    animation: none;
+  }
 }
 
 .page-favicon {
@@ -475,6 +508,12 @@ h1 {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.page-icon .page-success-icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.2;
 }
 
 .page-title {

@@ -433,8 +433,9 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("commands the background job and renders capture progress, Sending, and Imported", async () => {
+  it("renders import progress on the favicon and replaces it with a completion checkmark", async () => {
     const page: ActivePageInspection = {
+      faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
       sourceUrl: "https://example.com/live",
       tabId: 24,
@@ -475,7 +476,13 @@ describe("compact Browser Capture popup", () => {
     const pageFeedback = root.querySelector<HTMLElement>(
       "[data-page-feedback]",
     );
+    const pageIcon = root.querySelector<HTMLElement>("[data-page-icon]");
+    const successIcon = root.querySelector<SVGElement>(
+      "[data-page-success-icon]",
+    );
+    const favicon = root.querySelector<HTMLImageElement>("[data-page-favicon]");
     expect(pageFeedback?.hidden).toBe(true);
+    expect(pageIcon?.dataset.state).toBe("idle");
 
     if (importButton === null) return;
     fireEvent.click(importButton);
@@ -487,25 +494,26 @@ describe("compact Browser Capture popup", () => {
         false,
       );
     });
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageIcon?.ariaLabel).toBe("Importing");
+    expect(pageFeedback?.hidden).toBe(true);
     observe?.({
       phase: "capturing",
       page,
       completedAssets: 2,
       totalAssets: 5,
     });
-    expect(getByText(root, "Capturing page")).toBeTruthy();
-    expect(pageFeedback?.hidden).toBe(false);
-    expect(getByText(root, "Capturing images 2 of 5…")).toBeTruthy();
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageFeedback?.hidden).toBe(true);
+    expect(successIcon?.hasAttribute("hidden")).toBe(true);
     expect(getByRole(root, "button", { name: "Cancel" })).toBeTruthy();
 
     observe?.({
       phase: "sending",
       captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
     });
-    expect(getByText(root, "Sending to Increader")).toBeTruthy();
-    expect(
-      getByText(root, "Waiting for Increader to finish importing…"),
-    ).toBeTruthy();
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageFeedback?.hidden).toBe(true);
     expect(root.querySelector<HTMLButtonElement>("[data-cancel]")?.hidden).toBe(
       true,
     );
@@ -519,11 +527,13 @@ describe("compact Browser Capture popup", () => {
       origin: "https://reader.example",
     });
     await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-      expect(getByText(root, "Extracted article")).toBeTruthy();
       expect(getByRole(root, "button", { name: "Open bookmark" })).toBeTruthy();
     });
-    expect(pageFeedback?.hidden).toBe(false);
+    expect(pageIcon?.dataset.state).toBe("completed");
+    expect(pageIcon?.ariaLabel).toBe("Import complete");
+    expect(pageFeedback?.hidden).toBe(true);
+    expect(favicon?.hidden).toBe(true);
+    expect(successIcon?.hasAttribute("hidden")).toBe(false);
     expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
       true,
     );

@@ -43,6 +43,7 @@ try {
   );
   const form = await popup.evaluate(() => ({
     accountCardHidden: document.querySelector("[data-connection-card]")?.hidden,
+    bodyMinHeight: globalThis.getComputedStyle(document.body).minHeight,
     email: document.querySelector("#login-email")?.getAttribute("type"),
     google: document
       .querySelector("[data-google-sign-in]")
@@ -56,6 +57,7 @@ try {
   }));
   if (
     form.accountCardHidden !== true ||
+    form.bodyMinHeight !== "0px" ||
     form.email !== "email" ||
     form.google !== "Continue with Google" ||
     form.loginHidden !== false ||

@@ -211,13 +211,31 @@ export function mountPopup(
       >
         <div class="card-body">
           <div class="page-heading">
-            <span class="page-icon" aria-hidden="true">
+            <span
+              class="page-icon"
+              data-page-icon
+              data-state="idle"
+              role="status"
+            >
               <img class="page-favicon" data-page-favicon alt="" hidden />
-              <svg data-page-favicon-fallback viewBox="0 0 24 24">
+              <svg
+                data-page-favicon-fallback
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <circle cx="12" cy="12" r="9"></circle>
                 <path d="M3 12h18"></path>
                 <path d="M12 3a15 15 0 0 1 0 18"></path>
                 <path d="M12 3a15 15 0 0 0 0 18"></path>
+              </svg>
+              <svg
+                class="page-success-icon"
+                data-page-success-icon
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                hidden
+              >
+                <path d="m6.5 12.5 3.5 3.5 7.5-8"></path>
               </svg>
             </span>
             <div class="page-copy">
@@ -356,6 +374,7 @@ export function mountPopup(
     "[data-sign-out]",
   ) as HTMLButtonElement;
   const pageCard = requiredElement(root, "[data-page-card]") as HTMLElement;
+  const pageIcon = requiredElement(root, "[data-page-icon]") as HTMLElement;
   const pageFavicon = requiredElement(
     root,
     "[data-page-favicon]",
@@ -363,6 +382,10 @@ export function mountPopup(
   const pageFaviconFallback = requiredElement(
     root,
     "[data-page-favicon-fallback]",
+  ) as SVGElement;
+  const pageSuccessIcon = requiredElement(
+    root,
+    "[data-page-success-icon]",
   ) as SVGElement;
   const pageTitle = requiredElement(root, "[data-page-title]") as HTMLElement;
   const pageSource = requiredElement(root, "[data-page-source]") as HTMLElement;
@@ -421,6 +444,21 @@ export function mountPopup(
     importButton.hidden = hasOpenableBookmark;
     openReaderButton.hidden = !hasOpenableBookmark;
   };
+  const renderPageIconState = (
+    state: "idle" | "loading" | "completed",
+  ): void => {
+    pageIcon.dataset.state = state;
+    pageSuccessIcon.toggleAttribute("hidden", state !== "completed");
+    if (state === "loading") {
+      pageIcon.ariaLabel = "Importing";
+    } else if (state === "completed") {
+      pageIcon.ariaLabel = "Import complete";
+      pageFavicon.hidden = true;
+      pageFaviconFallback.setAttribute("hidden", "");
+    } else {
+      pageIcon.removeAttribute("aria-label");
+    }
+  };
 
   const showSettingsView = (): void => {
     loginView.hidden = true;
@@ -460,11 +498,13 @@ export function mountPopup(
   };
 
   const showFaviconFallback = (): void => {
+    if (pageIcon.dataset.state === "completed") return;
     pageFavicon.hidden = true;
     pageFaviconFallback.removeAttribute("hidden");
   };
 
   const renderPageFavicon = (faviconUrl?: string): void => {
+    renderPageIconState("idle");
     pageFavicon.removeAttribute("src");
     if (faviconUrl === undefined) {
       showFaviconFallback();
@@ -794,9 +834,8 @@ export function mountPopup(
           return;
         }
         importActive = true;
-        pageFeedback.hidden = false;
-        pageStatus.textContent = "Import authorized";
-        pageDetail.textContent = "Preparing this page for Increader…";
+        renderPageIconState("loading");
+        pageFeedback.hidden = true;
         root.dispatchEvent(
           new CustomEvent<ActivePageInspection>("browser-capture-import", {
             detail: freshPage,
@@ -829,11 +868,13 @@ export function mountPopup(
         }
         if (started.status !== "started") {
           importActive = false;
+          renderJobState(currentJobState);
         }
       })
       .catch((error: unknown) => {
         if (isDisposed()) return;
         importActive = false;
+        renderPageIconState("idle");
         pageFeedback.hidden = false;
         pageStatus.textContent = "Needs attention";
         pageDetail.textContent =
@@ -897,6 +938,7 @@ export function mountPopup(
     discardButton.hidden = true;
     if (next.phase === "ready") {
       importActive = false;
+      renderPageIconState("idle");
       if (!existingBookmarkNotice.hidden) {
         pageFeedback.hidden = true;
       } else if (next.notice !== undefined) {
@@ -917,19 +959,16 @@ export function mountPopup(
     openReaderButton.hidden = true;
     if (next.phase === "capturing") {
       importActive = true;
-      pageStatus.textContent = "Capturing page";
-      pageDetail.textContent =
-        next.totalAssets === undefined
-          ? "Preparing the page and finding images…"
-          : `Capturing images ${String(next.completedAssets)} of ${String(next.totalAssets)}…`;
+      renderPageIconState("loading");
+      pageFeedback.hidden = true;
       importButton.disabled = true;
       cancelButton.hidden = false;
       return;
     }
     if (next.phase === "sending") {
       importActive = true;
-      pageStatus.textContent = "Sending to Increader";
-      pageDetail.textContent = "Waiting for Increader to finish importing…";
+      renderPageIconState("loading");
+      pageFeedback.hidden = true;
       importButton.disabled = true;
       return;
     }
@@ -938,20 +977,19 @@ export function mountPopup(
       pageCanImport = false;
       existingBookmarkId = next.bookmarkId;
       readerOrigin = next.origin;
+      renderPageIconState("completed");
+      pageFeedback.hidden = true;
       if (next.outcome === "existing") {
         existingBookmarkNotice.hidden = false;
-        pageFeedback.hidden = true;
-        pageStatus.textContent = "";
-        pageDetail.textContent = "";
-      } else {
-        pageStatus.textContent = "Imported";
-        pageDetail.textContent = next.title;
       }
+      pageStatus.textContent = "";
+      pageDetail.textContent = "";
       renderBookmarkActions();
       importButton.disabled = currentPage === null;
       return;
     }
     importActive = false;
+    renderPageIconState("idle");
     pageStatus.textContent = "Needs attention";
     pageDetail.textContent = next.message;
     importButton.disabled = currentPage === null;
