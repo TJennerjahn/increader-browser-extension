@@ -595,10 +595,16 @@ describe("compact Browser Capture popup", () => {
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(getByText(root, "Unsupported page")).toBeTruthy();
       expect(getByText(root, "PDF pages cannot be imported.")).toBeTruthy();
     });
     expect(lookup).not.toHaveBeenCalled();
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
+    expect(
+      root.querySelector<HTMLElement>("[data-page-source]")?.textContent,
+    ).toBe("PDF pages cannot be imported.");
     expect(
       getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
     ).toBe(true);
@@ -851,12 +857,15 @@ describe("compact Browser Capture popup", () => {
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(getByText(root, "Unsupported page")).toBeTruthy();
       expect(
         getByText(root, "Browser-protected pages cannot be imported."),
       ).toBeTruthy();
     });
     expect(root.textContent).not.toContain("Extracted article");
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
   });
 
   it("offers explicit Retry and Discard and confirms replacement before a new Import", async () => {

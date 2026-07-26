@@ -601,11 +601,12 @@ export function mountPopup(
     if (inspected.kind === "unsupported") {
       currentPage = null;
       pageTitle.textContent = "Unsupported page";
-      pageSource.textContent = "";
-      pageStatus.textContent = "Unsupported";
-      pageDetail.textContent = inspected.reason;
+      pageSource.textContent = inspected.reason;
+      pageStatus.textContent = "";
+      pageDetail.textContent = "";
       importButton.disabled = true;
       renderJobState(currentJobState);
+      pageFeedback.hidden = true;
       return;
     }
 
