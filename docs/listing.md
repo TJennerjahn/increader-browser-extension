@@ -46,8 +46,9 @@ windows, mobile browsers, and Safari are not supported in this release.
 
 - Single purpose: user-authorized capture to Increader.
 - Authentication information: normal Increader account sessions are used.
-  Passwords and issued access tokens are not stored; Clerk's client
-  authorization and session identifier stay in local extension storage.
+  Passwords and issued access tokens are not persisted; a live access token may
+  be reused briefly from background memory. Clerk's client authorization and
+  session identifier stay in local extension storage.
 - Website content: read only after explicit Import; sent only to the selected
   Increader instance.
 - Browsing activity: the exact active URL is checked while the signed-in utility

@@ -108,6 +108,33 @@ describe("normal Increader authentication", () => {
     expect(stored).toBeNull();
   });
 
+  it("retains an account when passive token access finds an expired session", async () => {
+    const stored: AuthenticatedDestination = {
+      displayName: "Reader",
+      email: "reader@example.com",
+      origin: "https://reader.example",
+    };
+    const clear = vi.fn().mockResolvedValue(undefined);
+    const authentication = createAuthentication(
+      {
+        clear,
+        load: () => Promise.resolve(stored),
+        save: () => Promise.resolve(),
+      },
+      () => ({
+        accessToken: () => Promise.reject(new AuthenticationExpiredError()),
+        signIn: () => Promise.resolve("reader@example.com"),
+        signInWithGoogle: () => Promise.resolve("reader@example.com"),
+        signOut: () => Promise.resolve(),
+      }),
+    );
+
+    await expect(
+      authentication.accessToken({ retainAccountOnExpiry: true }),
+    ).rejects.toThrow("Your Increader session has expired.");
+    expect(clear).not.toHaveBeenCalled();
+  });
+
   it("stores a normal Cloud account after Google sign-in", async () => {
     let stored: AuthenticatedDestination | null = null;
     const signInWithGoogle = vi

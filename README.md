@@ -11,13 +11,17 @@ where a self-hosted origin can be selected. Self-hosted credentials are sent to
 that instance's normal `/api/auth/login` endpoint.
 
 Once signed in, opening the popup reads the active top-level page's title,
-fragment-free HTTP(S) URL, and document type. It sends only that URL for an exact
-owned Bookmark Lookup. Pressing Import separately authorizes a snapshot of the
-live DOM and selected images. The resulting multipart Capture Package enters
-Increader's normal Bookmark Import Flow.
+fragment-free HTTP(S) URL, and document type. Import becomes available as soon
+as that local inspection finishes. The extension sends only the URL for a
+best-effort exact owned Bookmark Lookup; if that finishes first, an existing
+Bookmark can be opened directly. Pressing Import separately authorizes a
+snapshot of the live DOM and selected images. The resulting multipart Capture
+Package enters Increader's normal Bookmark Import Flow, which remains
+authoritative when the lookup is incomplete or unavailable.
 
 Opening the popup trusts the locally stored account instead of blocking on a
-session check. If token access during lookup or import proves that the session
+session check. Background lookup failures stay invisible and do not forget the
+account. If token access during an explicit import proves that the session
 expired, Browser Capture forgets the account and returns directly to sign-in.
 
 The extension has no separate authorization scheme, approval page, installation
@@ -84,7 +88,8 @@ manifest key pins the Chrome origin to
 The chosen origin and account metadata are stored in `storage.local`. Cloud
 login also stores Clerk's normal client authorization and session identifier
 there so it can request short-lived access tokens. Passwords and issued access
-tokens are never stored.
+tokens are never persisted. A live Cloud access token can be reused from
+background memory until shortly before it expires.
 
 ## Protocol and architecture
 

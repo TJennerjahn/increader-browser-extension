@@ -8,6 +8,10 @@ export interface AuthenticatedDestination {
   origin: string;
 }
 
+export interface AccessTokenOptions {
+  retainAccountOnExpiry?: boolean;
+}
+
 export class AuthenticationExpiredError extends Error {
   constructor() {
     super("Your Increader session has expired.");
@@ -24,7 +28,7 @@ export interface Authentication {
     email: string,
     password: string,
   ): Promise<AuthenticatedDestination>;
-  accessToken(): Promise<string>;
+  accessToken(options?: AccessTokenOptions): Promise<string>;
   signOut(): Promise<void>;
 }
 
@@ -86,7 +90,7 @@ export function createAuthentication(
       return destination;
     },
 
-    async accessToken() {
+    async accessToken(options) {
       const destination = await store.load();
       if (destination === null) {
         throw new Error("Sign in to Increader first.");
@@ -94,7 +98,10 @@ export function createAuthentication(
       try {
         return await accountAt(destination.origin).accessToken();
       } catch (error) {
-        if (error instanceof AuthenticationExpiredError) {
+        if (
+          error instanceof AuthenticationExpiredError &&
+          options?.retainAccountOnExpiry !== true
+        ) {
           await store.clear();
         }
         throw error;

@@ -303,10 +303,49 @@ describe("compact Browser Capture popup", () => {
     ).toBe(false);
   });
 
-  it("does not expose background session checking while preparing the page", async () => {
+  it("enables Import before background token access and lookup complete", async () => {
     const token = deferred<string>();
     const authentication = authenticated();
-    authentication.accessToken = () => token.promise;
+    const accessToken = vi.fn(() => token.promise);
+    authentication.accessToken = accessToken;
+    const lookup = vi.fn().mockResolvedValue({ exists: false });
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      lookup: { lookup },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Observed Article")).toBeTruthy();
+    });
+    expect(
+      getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
+    ).toBe(false);
+    expect(root.textContent).not.toContain("Checking Increader");
+    expect(lookup).not.toHaveBeenCalled();
+
+    token.resolve("session_memory");
+    await vi.waitFor(() => {
+      expect(lookup).toHaveBeenCalledOnce();
+    });
+    expect(accessToken).toHaveBeenCalledWith({
+      retainAccountOnExpiry: true,
+    });
+  });
+
+  it("keeps passive lookup failures invisible until a user action", async () => {
+    const authentication = authenticated();
+    const accessToken = vi
+      .fn()
+      .mockRejectedValue(new Error("Your Increader session has expired."));
+    authentication.accessToken = accessToken;
     const root = document.createElement("main");
 
     mountPopup(root, authentication, {
@@ -320,15 +359,26 @@ describe("compact Browser Capture popup", () => {
       openReader: vi.fn(),
     });
 
+    const importButton =
+      root.querySelector<HTMLButtonElement>("[data-import]");
     await vi.waitFor(() => {
-      expect(getByText(root, "Observed Article")).toBeTruthy();
+      expect(importButton?.disabled).toBe(false);
     });
-    expect(root.textContent).not.toContain("Checking Increader");
-
-    token.resolve("session_memory");
+    await vi.waitFor(() => {
+      expect(accessToken).toHaveBeenCalledOnce();
+    });
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      false,
+    );
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.textContent).not.toContain(
+      "Your Increader session has expired.",
+    );
   });
 
-  it("returns to sign-in when an action proves the stored session expired", async () => {
+  it("returns to sign-in when an import proves the stored session expired", async () => {
     let connected = true;
     const authentication = authenticated();
     authentication.current = () =>
@@ -341,9 +391,21 @@ describe("compact Browser Capture popup", () => {
             }
           : null,
       );
-    authentication.accessToken = () => {
-      connected = false;
-      return Promise.reject(new Error("Your Increader session has expired."));
+    let publish:
+      | ((state: Awaited<ReturnType<CaptureJobClient["current"]>>) => void)
+      | undefined;
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe(listener) {
+        publish = listener;
+        return () => {
+          publish = undefined;
+        };
+      },
     };
     const root = document.createElement("main");
 
@@ -354,8 +416,22 @@ describe("compact Browser Capture popup", () => {
         tabId: 19,
         title: "Observed Article",
       }),
-      lookup: { lookup: vi.fn() },
+      captureJob,
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
       openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        root.querySelector<HTMLButtonElement>("[data-import]")?.disabled,
+      ).toBe(false);
+    });
+    connected = false;
+    publish?.({
+      phase: "failed",
+      captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      message: "Your Increader session has expired.",
+      retryable: false,
     });
 
     await vi.waitFor(() => {
@@ -363,10 +439,61 @@ describe("compact Browser Capture popup", () => {
         false,
       );
     });
-    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
-      true,
-    );
     expect(root.textContent).toContain("Your Increader session has expired.");
+  });
+
+  it("ignores a late existing-Bookmark lookup after Import starts", async () => {
+    const page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/article",
+      tabId: 19,
+      title: "Observed Article",
+    };
+    const result = deferred<{
+      bookmarkId: number;
+      exists: true;
+      title: string;
+    }>();
+    const startImport = vi.fn().mockResolvedValue({ status: "started" });
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport,
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, authenticated(), {
+      activePage: inspector(page),
+      captureJob,
+      lookup: { lookup: () => result.promise },
+      openReader: vi.fn(),
+    });
+
+    const importButton =
+      root.querySelector<HTMLButtonElement>("[data-import]");
+    await vi.waitFor(() => {
+      expect(importButton?.disabled).toBe(false);
+    });
+    if (importButton === null) return;
+    fireEvent.click(importButton);
+    await vi.waitFor(() => {
+      expect(startImport).toHaveBeenCalledOnce();
+    });
+
+    result.resolve({
+      bookmarkId: 42,
+      exists: true,
+      title: "Saved Article",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
   });
 
   it("offers an existing owned Bookmark without opening Reader automatically", async () => {

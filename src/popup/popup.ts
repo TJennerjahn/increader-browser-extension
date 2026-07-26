@@ -580,10 +580,10 @@ export function mountPopup(
     }
   };
 
-  const showInspection = async (
+  const showInspection = (
     inspected: ActivePageInspection,
     generation: number,
-  ): Promise<void> => {
+  ): void => {
     if (
       isDisposed() ||
       generation !== pageGeneration ||
@@ -615,43 +615,49 @@ export function mountPopup(
     pageStatus.textContent = "";
     pageDetail.textContent = "";
     pageFeedback.hidden = true;
-    importButton.disabled = true;
+    pageCanImport = true;
+    importButton.disabled = false;
+    renderJobState(currentJobState);
+    void lookupExistingBookmark(inspected, generation);
+  };
+
+  const lookupExistingBookmark = async (
+    inspected: Extract<ActivePageInspection, { kind: "supported" }>,
+    generation: number,
+  ): Promise<void> => {
+    if (
+      pageDependencies === undefined ||
+      authenticatedDestination === null
+    ) {
+      return;
+    }
+    const origin = authenticatedDestination.origin;
     try {
-      const accessToken = await authentication.accessToken();
-      const result = await pageDependencies?.lookup.lookup(
-        authenticatedDestination.origin,
+      const accessToken = await authentication.accessToken({
+        retainAccountOnExpiry: true,
+      });
+      const result = await pageDependencies.lookup.lookup(
+        origin,
         accessToken,
         inspected.sourceUrl,
       );
-      if (isDisposed() || generation !== pageGeneration) {
+      if (
+        isDisposed() ||
+        generation !== pageGeneration ||
+        importActive
+      ) {
         return;
       }
-      importButton.disabled = false;
-      if (result?.exists === true && result.bookmarkId !== undefined) {
+      if (result.exists && result.bookmarkId !== undefined) {
+        pageCanImport = false;
         existingBookmarkId = result.bookmarkId;
-        readerOrigin = authenticatedDestination.origin;
+        readerOrigin = origin;
         pageStatus.textContent = "";
         pageDetail.textContent = "";
-      } else {
-        pageCanImport = true;
-        pageStatus.textContent = "Ready";
-        pageDetail.textContent = "Choose Import to capture this exact page.";
+        renderJobState(currentJobState);
       }
-      renderJobState(currentJobState);
-    } catch (error) {
-      if (isDisposed() || generation !== pageGeneration) return;
-      if (await returnToSignInIfDisconnected(error)) return;
-      if (isDisposed() || generation !== pageGeneration) return;
-      currentPage = null;
-      pageCanImport = false;
-      pageFeedback.hidden = false;
-      pageStatus.textContent = "Could not check Increader";
-      pageDetail.textContent =
-        error instanceof Error
-          ? error.message
-          : "Sign in again and try once more.";
-      importButton.disabled = true;
-      renderJobState(currentJobState);
+    } catch {
+      // Lookup is a best-effort enhancement. Import remains authoritative.
     }
   };
 
@@ -687,7 +693,7 @@ export function mountPopup(
         reason: "This page cannot be inspected for import.",
       };
     }
-    await showInspection(inspected, generation);
+    showInspection(inspected, generation);
   }
 
   const signIn = async (
@@ -834,6 +840,7 @@ export function mountPopup(
     }
     const expectedPage = currentPage;
     const destinationOrigin = authenticatedDestination.origin;
+    pageGeneration += 1;
     importButton.disabled = true;
     void pageDependencies.activePage
       .inspect()
@@ -845,7 +852,7 @@ export function mountPopup(
           freshPage.sourceUrl !== expectedPage.sourceUrl
         ) {
           const generation = ++pageGeneration;
-          await showInspection(freshPage, generation);
+          showInspection(freshPage, generation);
           if (
             !isDisposed() &&
             generation === pageGeneration &&

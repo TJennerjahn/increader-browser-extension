@@ -18,6 +18,7 @@ interface AuthenticationCommand {
   origin?: string;
   email?: string;
   password?: string;
+  retainAccountOnExpiry?: boolean;
 }
 
 interface AuthenticationResponse {
@@ -88,8 +89,13 @@ export function createAuthenticationClient(
         command: "sign-in-google",
       });
     },
-    accessToken: () =>
-      command<string>(runtime, promiseRuntime, { command: "access-token" }),
+    accessToken: (options) =>
+      command<string>(runtime, promiseRuntime, {
+        command: "access-token",
+        ...(options?.retainAccountOnExpiry === true
+          ? { retainAccountOnExpiry: true }
+          : {}),
+      }),
     async signOut() {
       await command<unknown>(runtime, promiseRuntime, {
         command: "sign-out",
@@ -140,7 +146,9 @@ function runCommand(
     case "current-origin":
       return authentication.currentOrigin();
     case "access-token":
-      return authentication.accessToken();
+      return authentication.accessToken({
+        retainAccountOnExpiry: message.retainAccountOnExpiry === true,
+      });
     case "sign-out":
       return authentication.signOut();
     case "sign-in-google":

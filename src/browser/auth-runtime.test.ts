@@ -101,4 +101,26 @@ describe("popup authentication runtime", () => {
       target: "authentication",
     });
   });
+
+  it("marks speculative token access so it cannot forget the account", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({
+      ok: true,
+      value: "short-lived-token",
+    });
+    const client = createAuthenticationClient(
+      {
+        getURL: () => "chrome-extension://extension-id/",
+      } as unknown as typeof chrome.runtime,
+      {} as typeof chrome.permissions,
+      { sendMessage },
+    );
+
+    await client.accessToken({ retainAccountOnExpiry: true });
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      command: "access-token",
+      retainAccountOnExpiry: true,
+      target: "authentication",
+    });
+  });
 });

@@ -13,6 +13,7 @@ const CLOUD_SESSION_STORAGE_KEY = "browserCaptureCloudSession";
 const SELF_HOSTED_COOKIE = "increader_auth";
 const CLERK_ORIGIN = "https://clerk.increader.com";
 const CLERK_CLIENT_COOKIE = "__client";
+const ACCESS_TOKEN_EXPIRY_SKEW_MS = 5_000;
 
 export function createAuthenticationStore(
   storage: chrome.storage.StorageArea = chrome.storage.local,
@@ -73,6 +74,14 @@ export function createCloudAccountClient(
   tabs?: typeof chrome.tabs,
   prepareNativeTransport: () => Promise<void> = () => Promise.resolve(),
 ): AccountClient {
+  let tokenGeneration = 0;
+  let cachedAccessToken: CachedAccessToken | null = null;
+  let pendingAccessToken: PendingAccessToken | null = null;
+  const invalidateAccessToken = (): void => {
+    tokenGeneration += 1;
+    cachedAccessToken = null;
+    pendingAccessToken = null;
+  };
   const request = async (
     path: string,
     init: RequestInit,
@@ -81,7 +90,7 @@ export function createCloudAccountClient(
     await prepareNativeTransport();
     return clerkRequest(fetcher, path, init, authorization);
   };
-  const accessToken = async (): Promise<string> => {
+  const issueAccessToken = async (): Promise<string> => {
     const session = await loadCloudSession(storage);
     if (session === null) {
       throw new AuthenticationExpiredError();
@@ -106,9 +115,42 @@ export function createCloudAccountClient(
     }
     return value;
   };
+  const accessToken = (): Promise<string> => {
+    if (
+      cachedAccessToken !== null &&
+      cachedAccessToken.expiresAtEpochMs - ACCESS_TOKEN_EXPIRY_SKEW_MS >
+        Date.now()
+    ) {
+      return Promise.resolve(cachedAccessToken.value);
+    }
+    const generation = tokenGeneration;
+    if (pendingAccessToken?.generation === generation) {
+      return pendingAccessToken.promise;
+    }
+    const promise = issueAccessToken()
+      .then((value) => {
+        const expiresAtEpochMs = jwtExpiresAtEpochMs(value);
+        if (
+          generation === tokenGeneration &&
+          expiresAtEpochMs !== null &&
+          expiresAtEpochMs - ACCESS_TOKEN_EXPIRY_SKEW_MS > Date.now()
+        ) {
+          cachedAccessToken = { expiresAtEpochMs, value };
+        }
+        return value;
+      })
+      .finally(() => {
+        if (pendingAccessToken?.promise === promise) {
+          pendingAccessToken = null;
+        }
+      });
+    pendingAccessToken = { generation, promise };
+    return promise;
+  };
 
   return {
     async signInWithGoogle() {
+      invalidateAccessToken();
       if (cookies === undefined || tabs === undefined) {
         throw new Error("Google sign-in is unavailable in this browser.");
       }
@@ -165,6 +207,7 @@ export function createCloudAccountClient(
       return account.email;
     },
     async signIn(email, password) {
+      invalidateAccessToken();
       const initialized = await request("/v1/client", {
         method: "GET",
       });
@@ -195,6 +238,7 @@ export function createCloudAccountClient(
     },
     accessToken,
     async signOut() {
+      invalidateAccessToken();
       const session = await loadCloudSession(storage);
       if (session !== null) {
         await request(
@@ -214,6 +258,33 @@ export function createCloudAccountClient(
 interface CloudSession {
   authorization: string;
   sessionId: string;
+}
+
+interface CachedAccessToken {
+  expiresAtEpochMs: number;
+  value: string;
+}
+
+interface PendingAccessToken {
+  generation: number;
+  promise: Promise<string>;
+}
+
+function jwtExpiresAtEpochMs(value: string): number | null {
+  const payload = value.split(".")[1];
+  if (payload === undefined || payload.length === 0) return null;
+  try {
+    const base64 = payload.replaceAll("-", "+").replaceAll("_", "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const parsed: unknown = JSON.parse(globalThis.atob(padded));
+    if (parsed === null || typeof parsed !== "object") return null;
+    const exp = (parsed as Record<string, unknown>).exp;
+    return typeof exp === "number" && Number.isFinite(exp) && exp > 0
+      ? exp * 1_000
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 async function loadCloudSession(

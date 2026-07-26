@@ -336,6 +336,51 @@ describe("Increader Cloud account authentication", () => {
       sessionId: "sess_google",
     });
   });
+
+  it("reuses a live access token from background memory and refreshes near expiry", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-26T12:00:00.000Z"));
+    try {
+      const values: Record<string, unknown> = {
+        browserCaptureCloudSession: {
+          authorization: "client-one",
+          sessionId: "sess_normal",
+        },
+      };
+      const storage = {
+        get: (key: string) => Promise.resolve({ [key]: values[key] }),
+        remove: (key: string) => {
+          Reflect.deleteProperty(values, key);
+          return Promise.resolve();
+        },
+        set: (next: Record<string, unknown>) => {
+          Object.assign(values, next);
+          return Promise.resolve();
+        },
+      };
+      vi.stubGlobal("browser", { storage: { local: storage } });
+      const first = jwtExpiringAt(Date.now() + 60_000);
+      const second = jwtExpiringAt(Date.now() + 120_000);
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(clerkResponse({ jwt: first }, "client-two"))
+        .mockResolvedValueOnce(clerkResponse({ jwt: second }, "client-three"));
+      const client = createCloudAccountClient(
+        fetcher,
+        {} as chrome.storage.StorageArea,
+      );
+
+      await expect(client.accessToken()).resolves.toBe(first);
+      await expect(client.accessToken()).resolves.toBe(first);
+      expect(fetcher).toHaveBeenCalledOnce();
+
+      await vi.advanceTimersByTimeAsync(55_001);
+      await expect(client.accessToken()).resolves.toBe(second);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function clerkResponse(body: unknown, authorization: string): Response {
@@ -355,4 +400,13 @@ function clerkResponseWithoutAuthorization(body: unknown): Response {
     },
     status: 200,
   });
+}
+
+function jwtExpiringAt(epochMs: number): string {
+  const payload = globalThis
+    .btoa(JSON.stringify({ exp: Math.floor(epochMs / 1_000) }))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+  return `header.${payload}.signature`;
 }
