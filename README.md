@@ -16,6 +16,10 @@ owned Bookmark Lookup. Pressing Import separately authorizes a snapshot of the
 live DOM and selected images. The resulting multipart Capture Package enters
 Increader's normal Bookmark Import Flow.
 
+Opening the popup trusts the locally stored account instead of blocking on a
+session check. If token access during lookup or import proves that the session
+expired, Browser Capture forgets the account and returns directly to sign-in.
+
 The extension has no separate authorization scheme, approval page, installation
 identity, credential renewal protocol, or server-managed extension settings. A
 signed-in extension has the same account authority as the normal client.

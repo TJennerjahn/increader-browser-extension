@@ -66,7 +66,7 @@ export function mountPopup(
         </button>
       </header>
 
-      <section class="popup-view login-view" data-login-view>
+      <section class="popup-view login-view" data-login-view hidden>
         <div class="auth-heading">
           <p class="auth-eyebrow">Welcome back</p>
           <h2>Sign in to Increader</h2>
@@ -551,6 +551,18 @@ export function mountPopup(
     showLoginView();
   };
 
+  const returnToSignInIfDisconnected = async (
+    error: unknown,
+  ): Promise<boolean> => {
+    const current = await authentication
+      .current()
+      .catch(() => authenticatedDestination);
+    if (current !== null) return false;
+    if (isDisposed()) return true;
+    showDisconnected(error instanceof Error ? error.message : undefined);
+    return true;
+  };
+
   const showAuthenticated = (destination: AuthenticatedDestination): void => {
     authenticatedDestination = destination;
     configuredOrigin = destination.origin;
@@ -600,8 +612,9 @@ export function mountPopup(
     currentPage = inspected;
     pageTitle.textContent = inspected.title || "Untitled page";
     pageSource.textContent = inspected.sourceUrl;
-    pageStatus.textContent = "Checking Increader…";
+    pageStatus.textContent = "";
     pageDetail.textContent = "";
+    pageFeedback.hidden = true;
     importButton.disabled = true;
     try {
       const accessToken = await authentication.accessToken();
@@ -626,6 +639,8 @@ export function mountPopup(
       }
       renderJobState(currentJobState);
     } catch (error) {
+      if (isDisposed() || generation !== pageGeneration) return;
+      if (await returnToSignInIfDisconnected(error)) return;
       if (isDisposed() || generation !== pageGeneration) return;
       currentPage = null;
       pageCanImport = false;
@@ -993,6 +1008,7 @@ export function mountPopup(
       importButton.disabled = currentPage === null;
       return;
     }
+    void returnToSignInIfDisconnected(new Error(next.message));
     importActive = false;
     renderPageIconState("idle");
     pageStatus.textContent = "Needs attention";
@@ -1079,8 +1095,14 @@ export function mountPopup(
         showAuthenticated(current);
         showMainView();
       }
+      root.setAttribute("aria-busy", "false");
     })
-    .catch(() => undefined);
+    .catch(() => {
+      if (!isDisposed()) {
+        showDisconnected();
+        root.setAttribute("aria-busy", "false");
+      }
+    });
   void initializeConnection;
 
   return () => {

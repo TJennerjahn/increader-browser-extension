@@ -8,6 +8,13 @@ export interface AuthenticatedDestination {
   origin: string;
 }
 
+export class AuthenticationExpiredError extends Error {
+  constructor() {
+    super("Your Increader session has expired.");
+    this.name = AuthenticationExpiredError.name;
+  }
+}
+
 export interface Authentication {
   current(): Promise<AuthenticatedDestination | null>;
   currentOrigin(): Promise<string | null>;
@@ -31,7 +38,6 @@ export interface AccountClient {
   signInWithGoogle(): Promise<string>;
   signIn(email: string, password: string): Promise<string>;
   accessToken(): Promise<string>;
-  isSignedIn(): Promise<boolean>;
   signOut(): Promise<void>;
 }
 
@@ -42,15 +48,7 @@ export function createAuthentication(
   accountAt: AccountClientFactory,
 ): Authentication {
   return {
-    async current() {
-      const destination = await store.load();
-      if (destination === null) return null;
-      if (await accountAt(destination.origin).isSignedIn()) {
-        return destination;
-      }
-      await store.clear();
-      return null;
-    },
+    current: () => store.load(),
 
     async currentOrigin() {
       return (await store.load())?.origin ?? null;
@@ -93,7 +91,14 @@ export function createAuthentication(
       if (destination === null) {
         throw new Error("Sign in to Increader first.");
       }
-      return accountAt(destination.origin).accessToken();
+      try {
+        return await accountAt(destination.origin).accessToken();
+      } catch (error) {
+        if (error instanceof AuthenticationExpiredError) {
+          await store.clear();
+        }
+        throw error;
+      }
     },
 
     async signOut() {

@@ -21,6 +21,38 @@ import type { CaptureJobClient } from "../browser/capture-job-runtime";
 import { mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
+  it("does not flash sign-in while loading a stored account", async () => {
+    const current = deferred<
+      Awaited<ReturnType<Authentication["current"]>>
+    >();
+    const authentication = authenticated();
+    authentication.current = () => current.promise;
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication);
+
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      true,
+    );
+
+    current.resolve({
+      displayName: "Home Reader",
+      email: "reader@example.com",
+      origin: "https://reader.example",
+    });
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
+    });
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      true,
+    );
+  });
+
   it("starts signed out and signs in with the normal account form", async () => {
     const signIn = vi.fn().mockResolvedValue({
       displayName: "reader@example.com",
@@ -38,6 +70,7 @@ describe("compact Browser Capture popup", () => {
     const root = document.createElement("main");
 
     mountPopup(root, authentication);
+    await waitForLogin(root);
 
     expect(getByText(root, "Browser Capture")).toBeTruthy();
     expect(getByText(root, "Welcome back")).toBeTruthy();
@@ -97,9 +130,7 @@ describe("compact Browser Capture popup", () => {
       load: () => Promise.resolve(null),
       save,
     });
-    await vi.waitFor(() => {
-      expect(getByText(root, "Welcome back")).toBeTruthy();
-    });
+    await waitForLogin(root);
     fireEvent.click(
       getByRole(root, "button", { name: "Open instance settings" }),
     );
@@ -167,6 +198,7 @@ describe("compact Browser Capture popup", () => {
     );
     const root = document.createElement("main");
     mountPopup(root, authentication);
+    await waitForLogin(root);
 
     fireEvent.input(
       getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
@@ -198,6 +230,7 @@ describe("compact Browser Capture popup", () => {
       });
     const root = document.createElement("main");
     mountPopup(root, authentication);
+    await waitForLogin(root);
 
     fireEvent.click(
       getByRole(root, "button", { name: "Continue with Google" }),
@@ -268,6 +301,72 @@ describe("compact Browser Capture popup", () => {
         .querySelector("[data-page-favicon-fallback]")
         ?.hasAttribute("hidden"),
     ).toBe(false);
+  });
+
+  it("does not expose background session checking while preparing the page", async () => {
+    const token = deferred<string>();
+    const authentication = authenticated();
+    authentication.accessToken = () => token.promise;
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      lookup: { lookup: vi.fn() },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Observed Article")).toBeTruthy();
+    });
+    expect(root.textContent).not.toContain("Checking Increader");
+
+    token.resolve("session_memory");
+  });
+
+  it("returns to sign-in when an action proves the stored session expired", async () => {
+    let connected = true;
+    const authentication = authenticated();
+    authentication.current = () =>
+      Promise.resolve(
+        connected
+          ? {
+              displayName: "Home Reader",
+              email: "reader@example.com",
+              origin: "https://reader.example",
+            }
+          : null,
+      );
+    authentication.accessToken = () => {
+      connected = false;
+      return Promise.reject(new Error("Your Increader session has expired."));
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      lookup: { lookup: vi.fn() },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+        false,
+      );
+    });
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.textContent).toContain("Your Increader session has expired.");
   });
 
   it("offers an existing owned Bookmark without opening Reader automatically", async () => {
@@ -823,6 +922,14 @@ function inspector(page: ActivePageInspection): ActivePageInspector {
     inspect: () => Promise.resolve(page),
     observe: () => () => undefined,
   };
+}
+
+async function waitForLogin(root: HTMLElement): Promise<void> {
+  await vi.waitFor(() => {
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      false,
+    );
+  });
 }
 
 function deferred<T>(): {

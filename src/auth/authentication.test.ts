@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  AuthenticationExpiredError,
   createAuthentication,
   type AccountClient,
   type AuthenticatedDestination,
@@ -12,7 +13,6 @@ describe("normal Increader authentication", () => {
     const signIn = vi.fn().mockResolvedValue("reader@example.com");
     const account: AccountClient = {
       accessToken: vi.fn().mockResolvedValue("normal-user-token"),
-      isSignedIn: vi.fn().mockResolvedValue(true),
       signIn,
       signInWithGoogle: vi.fn().mockResolvedValue("reader@example.com"),
       signOut: vi.fn().mockResolvedValue(undefined),
@@ -50,7 +50,33 @@ describe("normal Increader authentication", () => {
     }
   });
 
-  it("clears a destination whose normal session expired", async () => {
+  it("returns the stored destination without validating its session", async () => {
+    let stored: AuthenticatedDestination | null = {
+      displayName: "Reader",
+      email: "reader@example.com",
+      origin: "https://reader.example",
+    };
+    const accountAt = vi.fn();
+    const authentication = createAuthentication(
+      {
+        clear: () => {
+          stored = null;
+          return Promise.resolve();
+        },
+        load: () => Promise.resolve(stored),
+        save: (value) => {
+          stored = value;
+          return Promise.resolve();
+        },
+      },
+      accountAt,
+    );
+
+    await expect(authentication.current()).resolves.toEqual(stored);
+    expect(accountAt).not.toHaveBeenCalled();
+  });
+
+  it("forgets an account when token access proves its session expired", async () => {
     let stored: AuthenticatedDestination | null = {
       displayName: "Reader",
       email: "reader@example.com",
@@ -69,15 +95,16 @@ describe("normal Increader authentication", () => {
         },
       },
       () => ({
-        accessToken: () => Promise.resolve("token"),
-        isSignedIn: () => Promise.resolve(false),
+        accessToken: () => Promise.reject(new AuthenticationExpiredError()),
         signIn: () => Promise.resolve("reader@example.com"),
         signInWithGoogle: () => Promise.resolve("reader@example.com"),
         signOut: () => Promise.resolve(),
       }),
     );
 
-    await expect(authentication.current()).resolves.toBeNull();
+    await expect(authentication.accessToken()).rejects.toThrow(
+      "Your Increader session has expired.",
+    );
     expect(stored).toBeNull();
   });
 
@@ -97,7 +124,6 @@ describe("normal Increader authentication", () => {
       },
       () => ({
         accessToken: () => Promise.resolve("token"),
-        isSignedIn: () => Promise.resolve(true),
         signIn: () => Promise.resolve("reader@example.com"),
         signInWithGoogle,
         signOut: () => Promise.resolve(),

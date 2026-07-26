@@ -1,4 +1,5 @@
 import {
+  AuthenticationExpiredError,
   CLOUD_INSTANCE_ORIGIN,
   type AccountClient,
   type AccountClientFactory,
@@ -83,7 +84,7 @@ export function createCloudAccountClient(
   const accessToken = async (): Promise<string> => {
     const session = await loadCloudSession(storage);
     if (session === null) {
-      throw new Error("Your Increader session has expired.");
+      throw new AuthenticationExpiredError();
     }
     const token = await request(
       `/v1/client/sessions/${encodeURIComponent(session.sessionId)}/tokens`,
@@ -101,7 +102,7 @@ export function createCloudAccountClient(
       stringProperty(token.body, "jwt") ??
       stringProperty(objectProperty(token.body, "response"), "jwt");
     if (value === null) {
-      throw new Error("Your Increader session has expired.");
+      throw new AuthenticationExpiredError();
     }
     return value;
   };
@@ -193,15 +194,6 @@ export function createCloudAccountClient(
       return email;
     },
     accessToken,
-    async isSignedIn() {
-      try {
-        await accessToken();
-        return true;
-      } catch {
-        await storageRemove(storage, CLOUD_SESSION_STORAGE_KEY);
-        return false;
-      }
-    },
     async signOut() {
       const session = await loadCloudSession(storage);
       if (session !== null) {
@@ -290,6 +282,9 @@ async function clerkRequest(
 }
 
 function clerkFailure(body: unknown, status: number): Error {
+  if (status === 401 || status === 404) {
+    return new AuthenticationExpiredError();
+  }
   const errors =
     body !== null && typeof body === "object" && !Array.isArray(body)
       ? (body as Record<string, unknown>).errors
@@ -379,9 +374,6 @@ export function createSelfHostedAccountClient(
       return user.email;
     },
     accessToken: () => requireSelfHostedToken(origin, cookies),
-    async isSignedIn() {
-      return (await cookieGet(cookies, origin, SELF_HOSTED_COOKIE)) !== null;
-    },
     async signOut() {
       await fetcher(new URL("/api/auth/logout", `${origin}/`).toString(), {
         credentials: "include",
@@ -528,7 +520,7 @@ async function requireSelfHostedToken(
 ): Promise<string> {
   const cookie = await cookieGet(cookies, origin, SELF_HOSTED_COOKIE);
   if (cookie === null || cookie.value.length === 0) {
-    throw new Error("Your Increader session has expired.");
+    throw new AuthenticationExpiredError();
   }
   return cookie.value;
 }

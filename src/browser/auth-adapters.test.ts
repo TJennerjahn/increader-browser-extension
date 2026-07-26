@@ -47,7 +47,6 @@ describe("self-hosted account authentication", () => {
       client.signIn("reader@example.com", "correct horse"),
     ).resolves.toBe("reader@example.com");
     await expect(client.accessToken()).resolves.toBe("normal-session-token");
-    await expect(client.isSignedIn()).resolves.toBe(true);
 
     expect(fetcher).toHaveBeenCalledWith(
       "https://reader.example/api/auth/login",
@@ -158,10 +157,7 @@ describe("Increader Cloud account authentication", () => {
       .mockResolvedValueOnce(
         clerkResponse({ jwt: "normal-user-token" }, "client-three"),
       )
-      .mockResolvedValueOnce(
-        clerkResponse({ jwt: "fresh-user-token" }, "client-four"),
-      )
-      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-five"));
+      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-four"));
     const client = createCloudAccountClient(
       fetcher,
       {} as chrome.storage.StorageArea,
@@ -171,7 +167,6 @@ describe("Increader Cloud account authentication", () => {
       client.signIn("reader@example.com", "correct horse"),
     ).resolves.toBe("reader@example.com");
     await expect(client.accessToken()).resolves.toBe("normal-user-token");
-    await expect(client.isSignedIn()).resolves.toBe(true);
     await client.signOut();
 
     expect(fetcher).toHaveBeenNthCalledWith(
