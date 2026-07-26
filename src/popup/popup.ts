@@ -218,7 +218,7 @@ export function mountPopup(
             </div>
           </div>
           <p class="page-source" data-page-source></p>
-          <div class="page-feedback">
+          <div class="page-feedback" data-page-feedback>
             <span class="feedback-dot" aria-hidden="true"></span>
             <div>
               <p class="page-status" data-page-status>Inspecting…</p>
@@ -358,6 +358,10 @@ export function mountPopup(
   ) as SVGElement;
   const pageTitle = requiredElement(root, "[data-page-title]") as HTMLElement;
   const pageSource = requiredElement(root, "[data-page-source]") as HTMLElement;
+  const pageFeedback = requiredElement(
+    root,
+    "[data-page-feedback]",
+  ) as HTMLElement;
   const pageStatus = requiredElement(root, "[data-page-status]") as HTMLElement;
   const pageDetail = requiredElement(root, "[data-page-detail]") as HTMLElement;
   const importButton = requiredElement(
@@ -389,6 +393,7 @@ export function mountPopup(
   let existingBookmarkId: number | null = null;
   let readerOrigin: string | null = null;
   let pageGeneration = 0;
+  let pageCanImport = false;
   let importActive = false;
   let currentJobState: CaptureJobState = { phase: "ready" };
   let retryRevealTimeout: ReturnType<typeof globalThis.setTimeout> | null =
@@ -463,6 +468,7 @@ export function mountPopup(
     currentPage = null;
     existingBookmarkId = null;
     readerOrigin = null;
+    pageCanImport = false;
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
@@ -511,6 +517,8 @@ export function mountPopup(
     renderPageFavicon(inspected.faviconUrl);
     existingBookmarkId = null;
     readerOrigin = null;
+    pageCanImport = false;
+    pageFeedback.hidden = false;
     renderBookmarkActions();
     if (inspected.kind === "unsupported") {
       currentPage = null;
@@ -546,6 +554,7 @@ export function mountPopup(
         pageStatus.textContent = "Already in Increader";
         pageDetail.textContent = result.title ?? "";
       } else {
+        pageCanImport = true;
         pageStatus.textContent = "Ready";
         pageDetail.textContent = "Choose Import to capture this exact page.";
       }
@@ -553,6 +562,8 @@ export function mountPopup(
     } catch (error) {
       if (isDisposed() || generation !== pageGeneration) return;
       currentPage = null;
+      pageCanImport = false;
+      pageFeedback.hidden = false;
       pageStatus.textContent = "Could not check Increader";
       pageDetail.textContent =
         error instanceof Error
@@ -578,6 +589,8 @@ export function mountPopup(
     pageSource.textContent = "";
     pageStatus.textContent = "Inspecting…";
     pageDetail.textContent = "";
+    pageCanImport = false;
+    pageFeedback.hidden = false;
     importButton.hidden = false;
     importButton.disabled = true;
     openReaderButton.hidden = true;
@@ -757,6 +770,7 @@ export function mountPopup(
             generation === pageGeneration &&
             freshPage.kind === "supported"
           ) {
+            pageFeedback.hidden = false;
             pageStatus.textContent = "Page changed";
             pageDetail.textContent =
               "Review this page and choose Import again.";
@@ -764,6 +778,7 @@ export function mountPopup(
           return;
         }
         importActive = true;
+        pageFeedback.hidden = false;
         pageStatus.textContent = "Import authorized";
         pageDetail.textContent = "Preparing this page for Increader…";
         root.dispatchEvent(
@@ -803,6 +818,7 @@ export function mountPopup(
       .catch((error: unknown) => {
         if (isDisposed()) return;
         importActive = false;
+        pageFeedback.hidden = false;
         pageStatus.textContent = "Needs attention";
         pageDetail.textContent =
           error instanceof Error
@@ -833,6 +849,7 @@ export function mountPopup(
       })
       .catch(() => {
         if (isDisposed()) return;
+        pageFeedback.hidden = false;
         pageStatus.textContent = "Could not open Reader";
         pageDetail.textContent = "Try opening this Bookmark again.";
       })
@@ -864,14 +881,18 @@ export function mountPopup(
     if (next.phase === "ready") {
       importActive = false;
       if (next.notice !== undefined) {
+        pageFeedback.hidden = false;
         pageStatus.textContent = "Ready";
         pageDetail.textContent = next.notice;
+      } else {
+        pageFeedback.hidden = pageCanImport;
       }
       renderBookmarkActions();
       importButton.disabled = currentPage === null;
       return;
     }
     pageCard.hidden = false;
+    pageFeedback.hidden = false;
     importButton.hidden = false;
     openReaderButton.hidden = true;
     if (next.phase === "capturing") {
@@ -894,6 +915,7 @@ export function mountPopup(
     }
     if (next.phase === "completed") {
       importActive = false;
+      pageCanImport = false;
       existingBookmarkId = next.bookmarkId;
       readerOrigin = next.origin;
       pageStatus.textContent =

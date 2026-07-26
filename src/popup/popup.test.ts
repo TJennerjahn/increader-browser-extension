@@ -211,7 +211,7 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("shows an authenticated supported page as Ready without authorizing Import", async () => {
+  it("enables Import without showing redundant Ready feedback", async () => {
     const page: ActivePageInspection = {
       faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
@@ -237,7 +237,10 @@ describe("compact Browser Capture popup", () => {
       expect(
         getByText(root, "https://example.com/article?view=full"),
       ).toBeTruthy();
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(
+        getByRole<HTMLButtonElement>(root, "button", { name: "Import" })
+          .disabled,
+      ).toBe(false);
     });
     expect(lookupCall).toHaveBeenCalledWith(
       "https://reader.example",
@@ -246,8 +249,8 @@ describe("compact Browser Capture popup", () => {
     );
     expect(importAuthorized).not.toHaveBeenCalled();
     expect(
-      getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
-    ).toBe(false);
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
     const favicon = root.querySelector<HTMLImageElement>("[data-page-favicon]");
     expect(favicon?.src).toBe("https://example.com/favicon.ico");
     expect(favicon?.hidden).toBe(false);
@@ -454,11 +457,17 @@ describe("compact Browser Capture popup", () => {
       openReader,
       closePopup,
     });
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
     await vi.waitFor(() => {
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(importButton?.disabled).toBe(false);
     });
+    const pageFeedback = root.querySelector<HTMLElement>(
+      "[data-page-feedback]",
+    );
+    expect(pageFeedback?.hidden).toBe(true);
 
-    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+    if (importButton === null) return;
+    fireEvent.click(importButton);
 
     await vi.waitFor(() => {
       expect(startImport).toHaveBeenCalledWith(
@@ -474,6 +483,7 @@ describe("compact Browser Capture popup", () => {
       totalAssets: 5,
     });
     expect(getByText(root, "Capturing page")).toBeTruthy();
+    expect(pageFeedback?.hidden).toBe(false);
     expect(getByText(root, "Capturing images 2 of 5…")).toBeTruthy();
     expect(getByRole(root, "button", { name: "Cancel" })).toBeTruthy();
 
@@ -502,6 +512,7 @@ describe("compact Browser Capture popup", () => {
       expect(getByText(root, "Extracted article")).toBeTruthy();
       expect(getByRole(root, "button", { name: "Open bookmark" })).toBeTruthy();
     });
+    expect(pageFeedback?.hidden).toBe(false);
     expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
       true,
     );
@@ -545,10 +556,14 @@ describe("compact Browser Capture popup", () => {
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
       openReader: vi.fn(),
     });
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(importButton?.disabled).toBe(false);
     });
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
     expect(root.textContent).not.toContain("Extracted article");
     expect(
       root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
