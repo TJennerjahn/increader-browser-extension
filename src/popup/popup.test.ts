@@ -293,10 +293,18 @@ describe("compact Browser Capture popup", () => {
       closePopup,
     });
 
+    const existingNotice = root.querySelector<HTMLElement>(
+      "[data-existing-bookmark-notice]",
+    );
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
-      expect(getByText(root, "My Saved Title")).toBeTruthy();
+      expect(existingNotice?.hidden).toBe(false);
     });
+    const pageCard = root.querySelector<HTMLElement>("[data-page-card]");
+    expect(existingNotice?.nextElementSibling).toBe(pageCard);
+    expect(root.textContent).not.toContain("My Saved Title");
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
     expect(openReader).not.toHaveBeenCalled();
     expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
       true,
@@ -333,7 +341,10 @@ describe("compact Browser Capture popup", () => {
       closePopup,
     });
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
+      expect(
+        root.querySelector<HTMLElement>("[data-existing-bookmark-notice]")
+          ?.hidden,
+      ).toBe(false);
     });
 
     fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));

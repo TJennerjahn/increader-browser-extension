@@ -195,6 +195,14 @@ export function mountPopup(
       </section>
 
       <section class="popup-view main-view" data-main-view hidden>
+      <p
+        class="existing-bookmark-notice"
+        data-existing-bookmark-notice
+        role="status"
+        hidden
+      >
+        Already in Increader
+      </p>
       <section
         class="page-card card card-surface"
         data-page-card
@@ -358,6 +366,10 @@ export function mountPopup(
   ) as SVGElement;
   const pageTitle = requiredElement(root, "[data-page-title]") as HTMLElement;
   const pageSource = requiredElement(root, "[data-page-source]") as HTMLElement;
+  const existingBookmarkNotice = requiredElement(
+    root,
+    "[data-existing-bookmark-notice]",
+  ) as HTMLElement;
   const pageFeedback = requiredElement(
     root,
     "[data-page-feedback]",
@@ -472,6 +484,7 @@ export function mountPopup(
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
+    existingBookmarkNotice.hidden = true;
     connectionCard.hidden = true;
     accountEmail.textContent = "";
     renderConfiguredOrigin();
@@ -518,6 +531,7 @@ export function mountPopup(
     existingBookmarkId = null;
     readerOrigin = null;
     pageCanImport = false;
+    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     renderBookmarkActions();
     if (inspected.kind === "unsupported") {
@@ -551,8 +565,9 @@ export function mountPopup(
       if (result?.exists === true && result.bookmarkId !== undefined) {
         existingBookmarkId = result.bookmarkId;
         readerOrigin = authenticatedDestination.origin;
-        pageStatus.textContent = "Already in Increader";
-        pageDetail.textContent = result.title ?? "";
+        existingBookmarkNotice.hidden = false;
+        pageStatus.textContent = "";
+        pageDetail.textContent = "";
       } else {
         pageCanImport = true;
         pageStatus.textContent = "Ready";
@@ -590,6 +605,7 @@ export function mountPopup(
     pageStatus.textContent = "Inspecting…";
     pageDetail.textContent = "";
     pageCanImport = false;
+    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     importButton.hidden = false;
     importButton.disabled = true;
@@ -849,6 +865,7 @@ export function mountPopup(
       })
       .catch(() => {
         if (isDisposed()) return;
+        existingBookmarkNotice.hidden = true;
         pageFeedback.hidden = false;
         pageStatus.textContent = "Could not open Reader";
         pageDetail.textContent = "Try opening this Bookmark again.";
@@ -880,7 +897,9 @@ export function mountPopup(
     discardButton.hidden = true;
     if (next.phase === "ready") {
       importActive = false;
-      if (next.notice !== undefined) {
+      if (!existingBookmarkNotice.hidden) {
+        pageFeedback.hidden = true;
+      } else if (next.notice !== undefined) {
         pageFeedback.hidden = false;
         pageStatus.textContent = "Ready";
         pageDetail.textContent = next.notice;
@@ -892,6 +911,7 @@ export function mountPopup(
       return;
     }
     pageCard.hidden = false;
+    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     importButton.hidden = false;
     openReaderButton.hidden = true;
@@ -918,9 +938,15 @@ export function mountPopup(
       pageCanImport = false;
       existingBookmarkId = next.bookmarkId;
       readerOrigin = next.origin;
-      pageStatus.textContent =
-        next.outcome === "created" ? "Imported" : "Already in Increader";
-      pageDetail.textContent = next.title;
+      if (next.outcome === "existing") {
+        existingBookmarkNotice.hidden = false;
+        pageFeedback.hidden = true;
+        pageStatus.textContent = "";
+        pageDetail.textContent = "";
+      } else {
+        pageStatus.textContent = "Imported";
+        pageDetail.textContent = next.title;
+      }
       renderBookmarkActions();
       importButton.disabled = currentPage === null;
       return;
