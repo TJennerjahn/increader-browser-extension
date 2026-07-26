@@ -23,6 +23,9 @@ const unmount = mountPopup(
   {
     activePage: createActivePageInspector(),
     captureJob: createCaptureJobClient(),
+    closePopup: () => {
+      globalThis.close();
+    },
     lookup: createBookmarkLookupHttpClient(),
     openReader: createTabOpener(),
   },

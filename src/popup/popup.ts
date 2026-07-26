@@ -19,6 +19,7 @@ export interface ConnectionOriginPreference {
 export interface PopupPageDependencies {
   activePage: ActivePageInspector;
   captureJob?: CaptureJobClient;
+  closePopup?(): void;
   confirmReplacement?(): boolean;
   lookup: BookmarkLookupClient;
   openReader(url: string): Promise<void>;
@@ -239,7 +240,7 @@ export function mountPopup(
               data-open-reader
               hidden
             >
-              Open Reader
+              Open bookmark
             </button>
             <button
               class="secondary-action btn btn-ghost"
@@ -387,6 +388,12 @@ export function mountPopup(
   let retryRevealTimeout: ReturnType<typeof globalThis.setTimeout> | null =
     null;
   const isDisposed = (): boolean => disposed;
+  const renderBookmarkActions = (): void => {
+    const hasOpenableBookmark =
+      existingBookmarkId !== null && readerOrigin !== null;
+    importButton.hidden = hasOpenableBookmark;
+    openReaderButton.hidden = !hasOpenableBookmark;
+  };
 
   const showSettingsView = (): void => {
     loginView.hidden = true;
@@ -495,7 +502,7 @@ export function mountPopup(
     renderPageFavicon(inspected.faviconUrl);
     existingBookmarkId = null;
     readerOrigin = null;
-    openReaderButton.hidden = true;
+    renderBookmarkActions();
     if (inspected.kind === "unsupported") {
       currentPage = null;
       pageTitle.textContent = "Unsupported page";
@@ -529,7 +536,6 @@ export function mountPopup(
         readerOrigin = authenticatedDestination.origin;
         pageStatus.textContent = "Already in Increader";
         pageDetail.textContent = result.title ?? "";
-        openReaderButton.hidden = false;
       } else {
         pageStatus.textContent = "Ready";
         pageDetail.textContent = "Choose Import to capture this exact page.";
@@ -563,6 +569,7 @@ export function mountPopup(
     pageSource.textContent = "";
     pageStatus.textContent = "Inspecting…";
     pageDetail.textContent = "";
+    importButton.hidden = false;
     importButton.disabled = true;
     openReaderButton.hidden = true;
     if (currentJobState.phase !== "ready") {
@@ -815,6 +822,11 @@ export function mountPopup(
     openReaderButton.disabled = true;
     void pageDependencies
       .openReader(readerUrl)
+      .then(() => {
+        if (!isDisposed()) {
+          pageDependencies.closePopup?.();
+        }
+      })
       .catch(() => {
         if (isDisposed()) return;
         pageStatus.textContent = "Could not open Reader";
@@ -851,10 +863,12 @@ export function mountPopup(
         pageStatus.textContent = "Ready";
         pageDetail.textContent = next.notice;
       }
+      renderBookmarkActions();
       importButton.disabled = currentPage === null;
       return;
     }
     pageCard.hidden = false;
+    importButton.hidden = false;
     openReaderButton.hidden = true;
     if (next.phase === "capturing") {
       importActive = true;
@@ -881,7 +895,7 @@ export function mountPopup(
       pageStatus.textContent =
         next.outcome === "created" ? "Imported" : "Already in Increader";
       pageDetail.textContent = next.title;
-      openReaderButton.hidden = false;
+      renderBookmarkActions();
       importButton.disabled = currentPage === null;
       return;
     }

@@ -256,6 +256,7 @@ describe("compact Browser Capture popup", () => {
 
   it("offers an existing owned Bookmark without opening Reader automatically", async () => {
     const openReader = vi.fn().mockResolvedValue(undefined);
+    const closePopup = vi.fn();
     const root = document.createElement("main");
 
     mountPopup(root, authenticated(), {
@@ -273,6 +274,7 @@ describe("compact Browser Capture popup", () => {
         }),
       },
       openReader,
+      closePopup,
     });
 
     await vi.waitFor(() => {
@@ -280,15 +282,22 @@ describe("compact Browser Capture popup", () => {
       expect(getByText(root, "My Saved Title")).toBeTruthy();
     });
     expect(openReader).not.toHaveBeenCalled();
-
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
-
-    expect(openReader).toHaveBeenCalledWith(
-      "https://reader.example/bookmarks/42",
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      true,
     );
+
+    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
+
+    await vi.waitFor(() => {
+      expect(openReader).toHaveBeenCalledWith(
+        "https://reader.example/bookmarks/42",
+      );
+      expect(closePopup).toHaveBeenCalledOnce();
+    });
   });
 
-  it("surfaces an explicit Open Reader failure", async () => {
+  it("surfaces an explicit Open bookmark failure without closing the popup", async () => {
+    const closePopup = vi.fn();
     const root = document.createElement("main");
     mountPopup(root, authenticated(), {
       activePage: inspector({
@@ -305,16 +314,18 @@ describe("compact Browser Capture popup", () => {
         }),
       },
       openReader: vi.fn().mockRejectedValue(new Error("tabs.create failed")),
+      closePopup,
     });
     await vi.waitFor(() => {
       expect(getByText(root, "Already in Increader")).toBeTruthy();
     });
 
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
+    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
 
     await vi.waitFor(() => {
       expect(getByText(root, "Could not open Reader")).toBeTruthy();
     });
+    expect(closePopup).not.toHaveBeenCalled();
   });
 
   it("keeps unsupported pages out of lookup and unable to Import", async () => {
@@ -420,12 +431,15 @@ describe("compact Browser Capture popup", () => {
       },
     };
     const root = document.createElement("main");
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    const closePopup = vi.fn();
 
     mountPopup(root, authenticated(), {
       activePage: inspector(page),
       captureJob,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
-      openReader: vi.fn(),
+      openReader,
+      closePopup,
     });
     await vi.waitFor(() => {
       expect(getByText(root, "Ready")).toBeTruthy();
@@ -473,7 +487,19 @@ describe("compact Browser Capture popup", () => {
     await vi.waitFor(() => {
       expect(getByText(root, "Imported")).toBeTruthy();
       expect(getByText(root, "Extracted article")).toBeTruthy();
-      expect(getByRole(root, "button", { name: "Open Reader" })).toBeTruthy();
+      expect(getByRole(root, "button", { name: "Open bookmark" })).toBeTruthy();
+    });
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      true,
+    );
+
+    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
+
+    await vi.waitFor(() => {
+      expect(openReader).toHaveBeenCalledWith(
+        "https://reader.example/bookmarks/84",
+      );
+      expect(closePopup).toHaveBeenCalledOnce();
     });
   });
 
