@@ -341,7 +341,7 @@ function updateAction(
       : state.phase === "sending"
         ? { badge: "↑", color: "#2563eb", title: "Sending to Increader" }
         : state.phase === "completed"
-          ? { badge: "✓", color: "#15803d", title: "Imported to Increader" }
+          ? { badge: "", color: "#64748b", title: "Imported to Increader" }
           : state.phase === "failed"
             ? { badge: "!", color: "#b91c1c", title: "Needs attention" }
             : { badge: "", color: "#64748b", title: "Browser Capture" };

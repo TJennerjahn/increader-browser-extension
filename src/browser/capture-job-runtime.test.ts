@@ -365,10 +365,11 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
       expect.arrayContaining([
         [{ text: "2" }],
         [{ text: "↑" }],
-        [{ text: "✓" }],
+        [{ text: "" }],
         [{ text: "!" }],
       ]),
     );
+    expect(setBadgeText).not.toHaveBeenCalledWith({ text: "✓" });
     expect(
       sentMessages.some(
         (message) =>
