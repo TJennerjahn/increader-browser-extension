@@ -21,7 +21,7 @@ TypeScript, manifest assertions, production build inspection, and web-ext lint.
 1. Verify `checksums.sha256`.
 2. Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**,
    and select `dist/production/chrome`.
-3. Confirm the ID is `haipjkpamjpojalajcgfeggbjhifjpnn`, version is `0.1.0`,
+3. Confirm the ID is `haipjkpamjpojalajcgfeggbjhifjpnn`, version is `0.1.1`,
    incognito is disallowed, and the permission list matches
    `release-metadata/manifest-permissions.json`.
 
@@ -65,7 +65,7 @@ npx web-ext sign \
   --source-dir dist/production/firefox \
   --artifacts-dir dist/signed \
   --upload-source-code \
-  dist/production/increader-browser-extension-0.1.0-firefox-reviewer-source.zip
+  dist/production/increader-browser-extension-0.1.1-firefox-reviewer-source.zip
 ```
 
 The pinned `web-ext` packages the exact inspected Firefox directory, uploads

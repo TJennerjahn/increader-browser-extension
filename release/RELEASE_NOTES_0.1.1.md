@@ -1,6 +1,6 @@
-# Increader 0.1.0
+# Increader 0.1.1
 
-Initial internal release for Chrome and Firefox 140+.
+Initial public release for Chrome and Firefox 140+.
 
 - Sign in to Increader Cloud with Google or email and password, or use a normal
   self-hosted account.

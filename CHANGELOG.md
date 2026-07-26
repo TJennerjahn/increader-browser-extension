@@ -2,6 +2,11 @@
 
 All notable changes to the Increader browser extension are documented here.
 
+## 0.1.1 — 2026-07-26
+
+- Bumped the extension version for Mozilla Add-ons resubmission.
+- Updated the store listing, marketing assets, and extension privacy policy.
+
 ## 0.1.0 — 2026-07-25
 
 - Added ordinary Increader Cloud and self-hosted account login.

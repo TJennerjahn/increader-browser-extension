@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Increader",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sign in and send the current page to your Increader instance.",
   "permissions": [
     "activeTab",

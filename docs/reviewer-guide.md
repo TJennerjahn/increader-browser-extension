@@ -1,6 +1,6 @@
 # Reviewer walkthrough
 
-Version 0.1.0 has one purpose: send a page selected by the User to the Increader
+Version 0.1.1 has one purpose: send a page selected by the User to the Increader
 account they signed into.
 
 ## Reproduce the package

@@ -6,27 +6,25 @@ Increader
 
 ## Summary
 
-Sign in and send the page you choose to Increader for focused reading.
+Stop scrolling. Start reading. Send the current page to Increader Cloud or your
+self-hosted instance and continue in a focused, distraction-free reader.
 
 ## Description
 
-Increader is a compact, user-triggered browser extension for saving the
-currently open HTML page for reading in Increader.
+Stop scrolling. Start reading. Increader sends the page you choose to your
+reading queue, where you can read without distractions and keep moving through
+what matters.
 
-Sign in to Increader Cloud with Google or email and password. Use the cog to
-select one self-hosted Increader instance and sign in with its normal
-credentials.
-Open the utility to check whether the exact current URL is already in your
-library. Choose Import to capture the rendered top-level page and selected
-images, then continue in Increader's normal Reader Mode.
+Use Increader Cloud or connect a self-hosted instance. The page URL, rendered
+content, and selected images are sent only when you choose Import. No analytics,
+advertising, telemetry, or background browsing.
 
-Nothing is captured merely because a page is open. Browser Capture has no
-analytics, telemetry, advertising, background browsing, or publisher-wide host
-permission. Captured content goes only to the selected Increader instance.
+## Notes for reviewers
 
-Chrome and Firefox use the same Browser Capture behavior. Firefox 140 or newer
-is required. PDFs, local files, browser-protected pages, private/incognito
-windows, mobile browsers, and Safari are not supported in this release.
+Build: `npm ci && npm run verify` (AMO default Ubuntu/Node 24). Output:
+`dist/production/increader-browser-extension-0.1.1-firefox-upload.zip`. Public
+npm dependencies are pinned in `package-lock.json`; no third-party runtime
+libraries, obfuscation, or remote code.
 
 ## Category and language
 
