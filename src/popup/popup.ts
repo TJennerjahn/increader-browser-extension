@@ -195,14 +195,6 @@ export function mountPopup(
       </section>
 
       <section class="popup-view main-view" data-main-view hidden>
-      <p
-        class="existing-bookmark-notice"
-        data-existing-bookmark-notice
-        role="status"
-        hidden
-      >
-        Already in Increader
-      </p>
       <section
         class="page-card card card-surface"
         data-page-card
@@ -415,10 +407,6 @@ export function mountPopup(
   ) as SVGElement;
   const pageTitle = requiredElement(root, "[data-page-title]") as HTMLElement;
   const pageSource = requiredElement(root, "[data-page-source]") as HTMLElement;
-  const existingBookmarkNotice = requiredElement(
-    root,
-    "[data-existing-bookmark-notice]",
-  ) as HTMLElement;
   const pageFeedback = requiredElement(
     root,
     "[data-page-feedback]",
@@ -550,7 +538,6 @@ export function mountPopup(
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
-    existingBookmarkNotice.hidden = true;
     connectionCard.hidden = true;
     accountEmail.textContent = "";
     renderConfiguredOrigin();
@@ -597,7 +584,6 @@ export function mountPopup(
     existingBookmarkId = null;
     readerOrigin = null;
     pageCanImport = false;
-    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     renderBookmarkActions();
     if (inspected.kind === "unsupported") {
@@ -631,7 +617,6 @@ export function mountPopup(
       if (result?.exists === true && result.bookmarkId !== undefined) {
         existingBookmarkId = result.bookmarkId;
         readerOrigin = authenticatedDestination.origin;
-        existingBookmarkNotice.hidden = false;
         pageStatus.textContent = "";
         pageDetail.textContent = "";
       } else {
@@ -671,7 +656,6 @@ export function mountPopup(
     pageStatus.textContent = "Inspecting…";
     pageDetail.textContent = "";
     pageCanImport = false;
-    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     importButton.hidden = false;
     importButton.disabled = true;
@@ -932,7 +916,6 @@ export function mountPopup(
       })
       .catch(() => {
         if (isDisposed()) return;
-        existingBookmarkNotice.hidden = true;
         pageFeedback.hidden = false;
         pageStatus.textContent = "Could not open Reader";
         pageDetail.textContent = "Try opening this Bookmark again.";
@@ -965,7 +948,7 @@ export function mountPopup(
     if (next.phase === "ready") {
       importActive = false;
       renderPageIconState("idle");
-      if (!existingBookmarkNotice.hidden) {
+      if (existingBookmarkId !== null) {
         pageFeedback.hidden = true;
       } else if (next.notice !== undefined) {
         pageFeedback.hidden = false;
@@ -979,7 +962,6 @@ export function mountPopup(
       return;
     }
     pageCard.hidden = false;
-    existingBookmarkNotice.hidden = true;
     pageFeedback.hidden = false;
     importButton.hidden = false;
     openReaderButton.hidden = true;
@@ -1005,9 +987,6 @@ export function mountPopup(
       readerOrigin = next.origin;
       renderPageIconState("completed");
       pageFeedback.hidden = true;
-      if (next.outcome === "existing") {
-        existingBookmarkNotice.hidden = false;
-      }
       pageStatus.textContent = "";
       pageDetail.textContent = "";
       renderBookmarkActions();

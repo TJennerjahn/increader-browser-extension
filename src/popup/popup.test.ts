@@ -293,14 +293,13 @@ describe("compact Browser Capture popup", () => {
       closePopup,
     });
 
-    const existingNotice = root.querySelector<HTMLElement>(
-      "[data-existing-bookmark-notice]",
-    );
+    const openBookmarkButton =
+      root.querySelector<HTMLButtonElement>("[data-open-reader]");
     await vi.waitFor(() => {
-      expect(existingNotice?.hidden).toBe(false);
+      expect(openBookmarkButton?.hidden).toBe(false);
     });
-    const pageCard = root.querySelector<HTMLElement>("[data-page-card]");
-    expect(existingNotice?.nextElementSibling).toBe(pageCard);
+    expect(root.querySelector("[data-existing-bookmark-notice]")).toBeNull();
+    expect(root.textContent).not.toContain("Already in Increader");
     expect(root.textContent).not.toContain("My Saved Title");
     expect(
       root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
@@ -310,7 +309,8 @@ describe("compact Browser Capture popup", () => {
       true,
     );
 
-    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
+    if (openBookmarkButton === null) return;
+    fireEvent.click(openBookmarkButton);
 
     await vi.waitFor(() => {
       expect(openReader).toHaveBeenCalledWith(
@@ -340,14 +340,14 @@ describe("compact Browser Capture popup", () => {
       openReader: vi.fn().mockRejectedValue(new Error("tabs.create failed")),
       closePopup,
     });
+    const openBookmarkButton =
+      root.querySelector<HTMLButtonElement>("[data-open-reader]");
     await vi.waitFor(() => {
-      expect(
-        root.querySelector<HTMLElement>("[data-existing-bookmark-notice]")
-          ?.hidden,
-      ).toBe(false);
+      expect(openBookmarkButton?.hidden).toBe(false);
     });
 
-    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
+    if (openBookmarkButton === null) return;
+    fireEvent.click(openBookmarkButton);
 
     await vi.waitFor(() => {
       expect(getByText(root, "Could not open Reader")).toBeTruthy();
