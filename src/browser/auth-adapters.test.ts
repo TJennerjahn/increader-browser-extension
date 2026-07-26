@@ -82,6 +82,51 @@ describe("self-hosted account authentication", () => {
       "Invalid email or password.",
     );
   });
+
+  it("uses the normal client message for rate-limited sign-in", async () => {
+    const client = createSelfHostedAccountClient(
+      "https://reader.example",
+      vi.fn().mockResolvedValue(new Response(null, { status: 429 })),
+      {} as typeof chrome.cookies,
+    );
+
+    await expect(client.signIn("reader@example.com", "secret")).rejects.toThrow(
+      "Too many attempts. Please wait a moment and try again.",
+    );
+  });
+
+  it("preserves structured API error messages like the normal client", async () => {
+    const client = createSelfHostedAccountClient(
+      "https://reader.example",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: "Password is required." }), {
+          headers: { "Content-Type": "application/json" },
+          status: 400,
+        }),
+      ),
+      {} as typeof chrome.cookies,
+    );
+
+    await expect(client.signIn("reader@example.com", "")).rejects.toThrow(
+      "Password is required.",
+    );
+  });
+
+  it("preserves text API errors like the normal client", async () => {
+    const client = createSelfHostedAccountClient(
+      "https://reader.example",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response("Invalid CORS request", { status: 403 }),
+        ),
+      {} as typeof chrome.cookies,
+    );
+
+    await expect(client.signIn("reader@example.com", "secret")).rejects.toThrow(
+      "Invalid CORS request",
+    );
+  });
 });
 
 describe("Increader Cloud account authentication", () => {

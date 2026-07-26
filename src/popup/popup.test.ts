@@ -147,6 +147,33 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
+  it("shows the normal client sign-in error", async () => {
+    const authentication = signedOut();
+    vi.spyOn(authentication, "signIn").mockRejectedValue(
+      new Error("Invalid email or password."),
+    );
+    const root = document.createElement("main");
+    mountPopup(root, authentication);
+
+    fireEvent.input(
+      getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
+      { target: { value: "reader@example.com" } },
+    );
+    fireEvent.input(getByLabelText<HTMLInputElement>(root, "Password"), {
+      target: { value: "wrong" },
+    });
+    const form = getByRole(root, "button", { name: "Sign in" }).closest("form");
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    fireEvent.submit(form);
+
+    await vi.waitFor(() => {
+      expect(getByRole(root, "status").textContent).toBe(
+        "Invalid email or password.",
+      );
+    });
+  });
+
   it("offers Google sign-in only for Increader Cloud", async () => {
     const authentication = signedOut();
     const signInWithGoogle = vi

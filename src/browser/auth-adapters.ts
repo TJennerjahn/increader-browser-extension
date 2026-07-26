@@ -347,13 +347,7 @@ export function createSelfHostedAccountClient(
         },
       );
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("Invalid email or password.");
-        }
-        if (response.status === 429) {
-          throw new Error("Too many attempts. Try again in a moment.");
-        }
-        throw new Error("The Increader instance could not sign you in.");
+        throw await selfHostedSignInFailure(response);
       }
       const value: unknown = await response.json();
       if (
@@ -383,6 +377,36 @@ export function createSelfHostedAccountClient(
       });
     },
   };
+}
+
+async function selfHostedSignInFailure(response: Response): Promise<Error> {
+  if (response.status === 401) {
+    return new Error("Invalid email or password.");
+  }
+  if (response.status === 429) {
+    return new Error("Too many attempts. Please wait a moment and try again.");
+  }
+
+  let message = `Request failed: ${String(response.status)}`;
+  const contentType = response.headers.get("Content-Type") ?? "";
+  try {
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("application/problem+json")
+    ) {
+      const body: unknown = await response.json();
+      message =
+        stringProperty(body, "detail") ??
+        stringProperty(body, "message") ??
+        message;
+    } else {
+      const body = await response.text();
+      if (body.length > 0) message = body;
+    }
+  } catch {
+    // Match the normal client by falling back to the HTTP status.
+  }
+  return new Error(message);
 }
 
 function activeCloudAccount(body: unknown): {
