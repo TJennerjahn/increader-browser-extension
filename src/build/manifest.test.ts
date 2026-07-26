@@ -9,6 +9,11 @@ const requiredPermissions = [
   "storage",
   "cookies",
   "notifications",
+  "declarativeNetRequestWithHostAccess",
+];
+const requiredCloudOrigins = [
+  "https://app.increader.com/*",
+  "https://clerk.increader.com/*",
 ];
 const optionalOrigins = [
   "https://*/*",
@@ -41,7 +46,7 @@ describe("production manifests", () => {
     }).toEqual({
       extensionId: "haipjkpamjpojalajcgfeggbjhifjpnn",
       permissions: requiredPermissions,
-      hostPermissions: undefined,
+      hostPermissions: requiredCloudOrigins,
       optionalHostPermissions: optionalOrigins,
       incognito: "not_allowed",
     });
@@ -71,7 +76,7 @@ describe("production manifests", () => {
         required: ["authenticationInfo", "browsingActivity", "websiteContent"],
       },
       permissions: requiredPermissions,
-      hostPermissions: undefined,
+      hostPermissions: requiredCloudOrigins,
       optionalHostPermissions: optionalOrigins,
       incognito: "not_allowed",
     });

@@ -60,8 +60,9 @@ The popup defaults to `https://app.increader.com`. Self-hosted instances must
 use an exact HTTPS origin; HTTP is accepted only for loopback development.
 Credentials, paths, queries, and fragments are rejected.
 
-The popup asks for an optional host grant for the chosen instance. Cloud login
-uses Clerk's browser Frontend API and the normal Increader Cloud account.
+Cloud access is included in the packaged extension. The popup asks for an
+optional host grant only when the User selects a self-hosted instance. Cloud
+login uses Clerk's browser Frontend API and the normal Increader Cloud account.
 Google sign-in continues in a normal browser tab, then the extension adopts the
 resulting Cloud session from `app.increader.com`; it is not offered for
 self-hosted instances.
@@ -70,9 +71,10 @@ session cookie, and sends that session token as a normal bearer token from the
 extension background process. Sign out uses the account provider's normal
 logout operation.
 
-The production Clerk instance must have Native API enabled and the packaged
-Chrome origin must be present in Clerk's `allowed_origins`. The checked-in
-manifest key pins that origin to
+The production Clerk instance must have Native API enabled, the packaged Chrome
+origin must be present in Clerk's `allowed_origins`, and the Cloud `/sign-in`
+and `/` URLs must be in Clerk's native SSO redirect allowlist. The checked-in
+manifest key pins the Chrome origin to
 `chrome-extension://haipjkpamjpojalajcgfeggbjhifjpnn`.
 
 The chosen origin and account metadata are stored in `storage.local`. Cloud

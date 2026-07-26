@@ -178,6 +178,14 @@ describe("Increader Cloud account authentication", () => {
     await client.signOut();
 
     expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "https://clerk.increader.com/v1/client?_is_native=1",
+      expect.objectContaining({
+        credentials: "omit",
+        method: "GET",
+      }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
       2,
       "https://clerk.increader.com/v1/client/sign_ins?_is_native=1",
       expect.objectContaining({
@@ -312,6 +320,14 @@ describe("Increader Cloud account authentication", () => {
       name: "__client",
       url: "https://clerk.increader.com/",
     });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "https://clerk.increader.com/v1/client?_is_native=1",
+      expect.objectContaining({
+        credentials: "omit",
+        method: "GET",
+      }),
+    );
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
       "https://clerk.increader.com/v1/client/sign_ins?_is_native=1",

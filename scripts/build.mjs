@@ -221,6 +221,7 @@ async function buildPermissionReport() {
     );
     reports[browser] = {
       required: [...manifest.permissions].sort(),
+      requiredHosts: [...manifest.host_permissions].sort(),
       optionalHosts: [...manifest.optional_host_permissions].sort(),
       incognito: manifest.incognito,
       contentScripts: manifest.content_scripts ?? [],
@@ -235,9 +236,14 @@ async function buildPermissionReport() {
     expectedRequired: [
       "activeTab",
       "cookies",
+      "declarativeNetRequestWithHostAccess",
       "notifications",
       "scripting",
       "storage",
+    ],
+    expectedRequiredHosts: [
+      "https://app.increader.com/*",
+      "https://clerk.increader.com/*",
     ],
     expectedOptionalHosts: [
       "http://127.0.0.1/*",

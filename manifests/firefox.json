@@ -8,7 +8,12 @@
     "scripting",
     "storage",
     "cookies",
-    "notifications"
+    "notifications",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://app.increader.com/*",
+    "https://clerk.increader.com/*"
   ],
   "optional_host_permissions": [
     "https://*/*",

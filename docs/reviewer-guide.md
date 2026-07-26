@@ -29,8 +29,9 @@ API fixtures, SBOMs, notices, and provenance. It does not contain
    captured. Created and existing Bookmark outcomes can open Reader Mode.
 6. Sign out. The normal account session ends and local account metadata clears.
 
-Cloud authentication requires Clerk Native API and the stable packaged Chrome
-origin documented in the README to be enabled on the production Clerk instance.
+Cloud authentication requires Clerk Native API, the stable packaged Chrome
+origin, and the native SSO redirect URLs documented in the README to be enabled
+on the production Clerk instance.
 
 ## Permissions
 

@@ -5,6 +5,7 @@ import {
   type AuthenticatedDestination,
   type AuthenticationStore,
 } from "../auth/authentication";
+import { createClerkNativeTransport } from "./clerk-native-transport";
 
 const AUTHENTICATION_STORAGE_KEY = "browserCaptureAuthentication";
 const CLOUD_SESSION_STORAGE_KEY = "browserCaptureCloudSession";
@@ -49,8 +50,15 @@ export function createAccountClientFactory(
   cookies: typeof chrome.cookies = chrome.cookies,
   storage: chrome.storage.StorageArea = chrome.storage.local,
   tabs: typeof chrome.tabs = chrome.tabs,
+  declarativeNetRequest: typeof chrome.declarativeNetRequest = chrome.declarativeNetRequest,
 ): AccountClientFactory {
-  const cloud = createCloudAccountClient(fetcher, storage, cookies, tabs);
+  const cloud = createCloudAccountClient(
+    fetcher,
+    storage,
+    cookies,
+    tabs,
+    createClerkNativeTransport(declarativeNetRequest),
+  );
   return (origin) =>
     origin === CLOUD_INSTANCE_ORIGIN
       ? cloud
@@ -62,14 +70,22 @@ export function createCloudAccountClient(
   storage: chrome.storage.StorageArea,
   cookies?: typeof chrome.cookies,
   tabs?: typeof chrome.tabs,
+  prepareNativeTransport: () => Promise<void> = () => Promise.resolve(),
 ): AccountClient {
+  const request = async (
+    path: string,
+    init: RequestInit,
+    authorization?: string,
+  ): Promise<{ authorization: string; body: unknown }> => {
+    await prepareNativeTransport();
+    return clerkRequest(fetcher, path, init, authorization);
+  };
   const accessToken = async (): Promise<string> => {
     const session = await loadCloudSession(storage);
     if (session === null) {
       throw new Error("Your Increader session has expired.");
     }
-    const token = await clerkRequest(
-      fetcher,
+    const token = await request(
       `/v1/client/sessions/${encodeURIComponent(session.sessionId)}/tokens`,
       {
         body: new URLSearchParams(),
@@ -100,11 +116,10 @@ export function createCloudAccountClient(
         CLERK_ORIGIN,
         CLERK_CLIENT_COOKIE,
       );
-      const initialized = await clerkRequest(fetcher, "/v1/client", {
+      const initialized = await request("/v1/client", {
         method: "GET",
       });
-      const signedIn = await clerkRequest(
-        fetcher,
+      const signedIn = await request(
         "/v1/client/sign_ins",
         {
           body: new URLSearchParams({
@@ -136,8 +151,7 @@ export function createCloudAccountClient(
       );
       await tabCreate(tabs, redirectUrl);
       const clientCookie = await nextClient;
-      const adopted = await clerkRequest(
-        fetcher,
+      const adopted = await request(
         "/v1/client",
         { method: "GET" },
         clientCookie.value,
@@ -150,11 +164,10 @@ export function createCloudAccountClient(
       return account.email;
     },
     async signIn(email, password) {
-      const initialized = await clerkRequest(fetcher, "/v1/client", {
+      const initialized = await request("/v1/client", {
         method: "GET",
       });
-      const signedIn = await clerkRequest(
-        fetcher,
+      const signedIn = await request(
         "/v1/client/sign_ins",
         {
           body: new URLSearchParams({ identifier: email, password }),
@@ -192,8 +205,7 @@ export function createCloudAccountClient(
     async signOut() {
       const session = await loadCloudSession(storage);
       if (session !== null) {
-        await clerkRequest(
-          fetcher,
+        await request(
           `/v1/client/sessions/${encodeURIComponent(session.sessionId)}/remove`,
           {
             body: new URLSearchParams(),
@@ -253,9 +265,7 @@ async function clerkRequest(
     headers.set("Authorization", `Bearer ${authorization}`);
   }
   const endpoint = new URL(path, CLERK_ORIGIN);
-  if (authorization !== undefined) {
-    endpoint.searchParams.set("_is_native", "1");
-  }
+  endpoint.searchParams.set("_is_native", "1");
   const response = await fetcher(endpoint.toString(), {
     ...init,
     credentials: "omit",
