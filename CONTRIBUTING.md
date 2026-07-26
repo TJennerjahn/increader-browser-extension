@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Increader Browser Capture.
+Thanks for helping improve the Increader browser extension.
 
 ## Before opening a change
 
@@ -20,7 +20,7 @@ npm run verify
 ```
 
 Behavior changes should proceed one observable red-green slice at a time. Tests
-cross the public Pairing, Capture Job, popup, browser-package, and protocol
+cross the public Authentication, Capture Job, popup, browser-package, and protocol
 seams. Browser APIs, local storage, and HTTP are system boundaries; internal
 function call order is not a contract.
 

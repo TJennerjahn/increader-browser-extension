@@ -1,144 +1,21 @@
 openapi: 3.1.0
 info:
-  title: Increader Browser Capture Protocol
-  version: unversioned
+  title: Increader Browser Capture API
+  version: 0.1.0
   description: |
-    The additive wire contract shared by Increader Cloud, self-hosted
-    deployments, and the Increader Browser Extension. `info.version` is
-    OpenAPI metadata only: the Browser Capture Protocol and Capture Packages
-    deliberately have no schema-version field or versioned URL.
+    Browser Capture uses the same authenticated User session as the normal
+    Increader client. It adds exact Bookmark lookup and multipart page import;
+    it does not define a separate pairing or credential protocol.
 paths:
-  /api/browser-capture/discovery:
-    get:
-      operationId: discoverBrowserCapture
-      summary: Discover Browser Capture support
-      description: |
-        Returns a public, non-User-specific description of this instance's
-        Browser Capture compatibility and effective limits. This is not an
-        operational health endpoint.
-      security: []
-      responses:
-        "200":
-          description: Compatible Browser Capture discovery document
-          headers:
-            Cache-Control:
-              schema:
-                type: string
-              description: Discovery is returned with `no-store`.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserCaptureDiscovery"
-  /api/browser-capture/pairing/approvals:
-    post:
-      operationId: approveBrowserCapturePairing
-      summary: Approve one Browser Extension Installation
-      description: |
-        Uses the instance's existing Account Identity context to display and
-        record explicit User approval. The Browser Extension receives only a
-        five-minute, single-use authorization code. The requested instance
-        origin must equal the receiving server's canonical request origin.
-      security:
-        - accountIdentity: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrowserCapturePairingApprovalRequest"
-      responses:
-        "201":
-          description: Single-use approval code bound to the exact request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserCapturePairingApproval"
-        "400":
-          description: Invalid pairing request
-        "401":
-          description: Account Identity authentication is required
-        "503":
-          description: Browser Capture Pairing is unavailable
-  /api/browser-capture/pairing/exchange:
-    post:
-      operationId: exchangeBrowserCapturePairingCode
-      summary: Establish a pairing with a PKCE-bound approval code
-      description: |
-        This token operation ignores Account Identity cookies. The code,
-        verifier, instance, callback, state, and installation must match the
-        approved request exactly.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrowserCapturePairingExchange"
-      responses:
-        "200":
-          description: Capture-scoped credentials for the paired installation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserCapturePairingCredentials"
-        "401":
-          description: Invalid, expired, used, or incorrectly bound code
-  /api/browser-capture/pairing/renew:
-    post:
-      operationId: renewBrowserCapturePairing
-      summary: Rotate a pairing's renewal credential on demand
-      description: |
-        This token operation ignores Account Identity cookies. Successful
-        renewal rotates the opaque credential and restarts its 90-day
-        inactivity window.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrowserCapturePairingRenewal"
-      responses:
-        "200":
-          description: Rotated renewal credential and ten-minute access token
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BrowserCapturePairingCredentials"
-        "401":
-          description: Invalid, expired, replayed, or incorrectly bound credential
-  /api/browser-capture/pairing/revoke:
-    post:
-      operationId: disconnectBrowserCapturePairing
-      summary: Revoke the calling Browser Extension Installation
-      description: This token operation ignores Account Identity cookies.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BrowserCapturePairingRenewal"
-      responses:
-        "204":
-          description: Pairing revoked
-        "401":
-          description: Invalid or incorrectly bound credential
   /api/browser-capture/bookmarks/lookup:
     post:
       operationId: lookupBrowserCaptureBookmark
       summary: Find an owned Bookmark at the exact Capture Source URL
-      description: |
-        Performs one User-scoped exact-string URL lookup through the calling
-        Browser Capture Pairing. This is not library search and does not apply
-        canonical, redirect, tracking-parameter, or other URL equivalence.
       security:
-        - browserCaptureAccess: []
+        - bearerAuth: []
+        - sessionCookie: []
       requestBody:
         required: true
-        description: |
-          Minimal request body keeps the publisher URL out of request targets
-          and ordinary proxy/access logs.
         content:
           application/json:
             schema:
@@ -153,21 +30,14 @@ paths:
         "400":
           description: Invalid or fragment-bearing Capture Source URL
         "401":
-          description: Invalid or expired Browser Capture Access Token
+          description: Normal Increader authentication is required
   /api/browser-capture/captures:
     post:
       operationId: importBrowserCapturePackage
-      summary: Import one immutable Capture Package
-      description: |
-        Accepts one atomic Capture Package from the calling Pairing. Captured
-        binary asset parts use their Capture Asset ID as the multipart field
-        name. The Capture Source URL remains Bookmark identity while canonical
-        and base URLs are metadata/resolution hints. Capture ID idempotency is
-        scoped to the paired User and logical package fingerprint. The encoded
-        multipart request must have a fixed Content-Length no greater than
-        64 MiB and must not use a non-identity Content-Encoding.
+      summary: Import captured HTML and selected images
       security:
-        - browserCaptureAccess: []
+        - bearerAuth: []
+        - sessionCookie: []
       requestBody:
         required: true
         content:
@@ -177,7 +47,6 @@ paths:
               additionalProperties:
                 type: string
                 format: binary
-                description: Raw captured image bytes keyed by Capture Asset ID.
               required:
                 - manifest
                 - document
@@ -206,255 +75,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookmarkResponse"
         "200":
-          description: The normal existing Bookmark outcome
+          description: An existing Bookmark was returned
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookmarkResponse"
         "400":
-          description: The complete Capture Package is invalid
+          description: The Capture Package is invalid
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/BrowserCaptureProblem"
         "401":
-          description: Invalid or expired Browser Capture Access Token
-        "409":
-          description: Capture ID was used for different logical content
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/BrowserCaptureProblem"
-        "413":
-          description: Encoded multipart request exceeds 64 MiB
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/BrowserCaptureProblem"
-        "429":
-          description: Browser Capture transfer concurrency or rate limit
-          headers:
-            Retry-After:
-              required: true
-              description: Bounded whole seconds before an explicit Retry.
-              schema:
-                type: integer
-                minimum: 1
-                maximum: 3600
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/BrowserCaptureProblem"
-  /api/browser-capture/pairings:
-    get:
-      operationId: listBrowserCapturePairings
-      summary: List the current User's paired installations
-      security:
-        - accountIdentity: []
-      responses:
-        "200":
-          description: Active Browser Extension Installations
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/BrowserCapturePairingSummary"
-    delete:
-      operationId: revokeAllBrowserCapturePairings
-      summary: Revoke all paired installations for the current User
-      security:
-        - accountIdentity: []
-      responses:
-        "204":
-          description: All pairings revoked
-  /api/browser-capture/pairings/{pairingId}:
-    delete:
-      operationId: revokeBrowserCapturePairing
-      summary: Revoke one paired installation owned by the current User
-      security:
-        - accountIdentity: []
-      parameters:
-        - name: pairingId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        "204":
-          description: Pairing revoked or already absent
+          description: Normal Increader authentication is required
 components:
   securitySchemes:
-    accountIdentity:
+    bearerAuth:
       type: http
       scheme: bearer
-      description: |
-        Existing Cloud or self-hosted Account Identity authentication. The
-        approval and account-management operations also use the build
-        variant's normal same-origin web session.
-    browserCaptureAccess:
-      type: http
-      scheme: bearer
-      bearerFormat: opaque-bca
-      description: |
-        Short-lived Browser Capture Access Token. It is resolved only by
-        Browser Capture operations and grants no general Increader API access.
+      bearerFormat: JWT
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: increader_auth
   schemas:
-    BrowserCapturePairingApprovalRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - instanceOrigin
-        - installationId
-        - installationName
-        - callbackUri
-        - state
-        - codeChallenge
-        - codeChallengeMethod
-      properties:
-        instanceOrigin:
-          type: string
-          format: uri
-          maxLength: 2048
-        installationId:
-          type: string
-          format: uuid
-        installationName:
-          type: string
-          minLength: 1
-          maxLength: 120
-        callbackUri:
-          type: string
-          format: uri
-          maxLength: 2048
-        state:
-          type: string
-          pattern: "^[A-Za-z0-9._~-]{32,128}$"
-        codeChallenge:
-          type: string
-          pattern: "^[A-Za-z0-9._~-]{43,128}$"
-        codeChallengeMethod:
-          type: string
-          const: S256
-    BrowserCapturePairingApproval:
-      type: object
-      additionalProperties: false
-      required:
-        - authorizationCode
-        - callbackUri
-        - state
-      properties:
-        authorizationCode:
-          type: string
-          pattern: "^bcc_[A-Za-z0-9_-]+$"
-        callbackUri:
-          type: string
-          format: uri
-        state:
-          type: string
-    BrowserCapturePairingExchange:
-      type: object
-      additionalProperties: false
-      required:
-        - authorizationCode
-        - codeVerifier
-        - instanceOrigin
-        - installationId
-        - callbackUri
-        - state
-      properties:
-        authorizationCode:
-          type: string
-          pattern: "^bcc_[A-Za-z0-9_-]+$"
-        codeVerifier:
-          type: string
-          pattern: "^[A-Za-z0-9._~-]{43,128}$"
-        instanceOrigin:
-          type: string
-          format: uri
-        installationId:
-          type: string
-          format: uuid
-        callbackUri:
-          type: string
-          format: uri
-        state:
-          type: string
-    BrowserCapturePairingRenewal:
-      type: object
-      additionalProperties: false
-      required:
-        - renewalCredential
-        - installationId
-        - instanceOrigin
-      properties:
-        renewalCredential:
-          type: string
-          pattern: "^bcr_[A-Za-z0-9_-]+$"
-        installationId:
-          type: string
-          format: uuid
-        instanceOrigin:
-          type: string
-          format: uri
-    BrowserCapturePairingCredentials:
-      type: object
-      additionalProperties: false
-      required:
-        - tokenType
-        - accessToken
-        - expiresInSeconds
-        - renewalCredential
-        - renewalExpiresInSeconds
-        - pairingId
-      properties:
-        tokenType:
-          type: string
-          const: Bearer
-        accessToken:
-          type: string
-          pattern: "^bca_[A-Za-z0-9_-]+$"
-        expiresInSeconds:
-          type: integer
-          const: 600
-        renewalCredential:
-          type: string
-          pattern: "^bcr_[A-Za-z0-9_-]+$"
-        renewalExpiresInSeconds:
-          type: integer
-          const: 7776000
-        pairingId:
-          type: string
-          format: uuid
-    BrowserCapturePairingSummary:
-      type: object
-      additionalProperties: false
-      required:
-        - id
-        - installationId
-        - installationName
-        - instanceOrigin
-        - createdAt
-        - lastRenewedAt
-      properties:
-        id:
-          type: string
-          format: uuid
-        installationId:
-          type: string
-          format: uuid
-        installationName:
-          type: string
-        instanceOrigin:
-          type: string
-          format: uri
-        createdAt:
-          type: string
-          format: date-time
-        lastRenewedAt:
-          type: string
-          format: date-time
     BrowserCaptureBookmarkLookup:
       type: object
       additionalProperties: false
@@ -465,10 +109,8 @@ components:
           type: boolean
         bookmarkId:
           type: integer
-          description: Present only for an owned Bookmark at the exact URL.
         title:
           type: string
-          description: Present only when the existing owned Bookmark has a title.
     BrowserCaptureBookmarkLookupRequest:
       type: object
       additionalProperties: false
@@ -494,7 +136,6 @@ components:
         captureId:
           type: string
           format: uuid
-          description: Globally unique identity allocated for one Import authorization.
         capturedAt:
           type: string
           format: date-time
@@ -502,21 +143,17 @@ components:
           type: string
           format: uri
           maxLength: 8192
-          description: Final fragment-free top-level HTTP(S) Bookmark identity.
         baseUrl:
           type: string
           format: uri
           maxLength: 8192
-          description: Absolute HTTP(S) base used only to resolve captured references.
         canonicalUrl:
           type: string
           format: uri
           maxLength: 8192
-          description: Optional validated publisher hint; never Bookmark identity.
         title:
           type: string
           maxLength: 1024
-          description: Observed fallback hint; Article Extraction remains authoritative.
         language:
           type: string
           maxLength: 35
@@ -530,10 +167,6 @@ components:
           maxItems: 1000
           items:
             $ref: "#/components/schemas/BrowserCaptureAsset"
-          description: |
-            Ordered by the first corresponding opaque marker in the document.
-            Repeated markers may reference one record. Every record must be
-            referenced and captured records require one same-ID binary part.
       additionalProperties: true
     BrowserCaptureAsset:
       oneOf:
@@ -557,9 +190,6 @@ components:
           type: string
           format: uri
           maxLength: 8192
-          description: |
-            Resolved selected image provenance. Captured data images use the
-            bounded non-replayable value `data:`.
         status:
           type: string
           enum:
@@ -595,9 +225,6 @@ components:
           type: string
           format: uri
           maxLength: 8192
-          description: |
-            Resolved selected image provenance. Non-replayable data images use
-            `data:` and blob images retain their bounded blob URL.
         status:
           type: string
           enum:
@@ -655,7 +282,6 @@ components:
         title:
           type: string
       additionalProperties: true
-      description: Existing normal Increader BookmarkResponse; no Capture metadata.
     BrowserCaptureProblem:
       type: object
       required:
@@ -663,8 +289,6 @@ components:
         - status
         - code
       properties:
-        type:
-          type: string
         title:
           type: string
         status:
@@ -675,139 +299,4 @@ components:
           type: string
           enum:
             - capture_package_invalid
-            - capture_id_conflict
-            - capture_request_too_large
-            - capture_content_length_required
-            - capture_transfer_limited
-      additionalProperties: true
-    BrowserCaptureDiscovery:
-      type: object
-      required:
-        - protocol
-        - displayName
-        - pairingAvailable
-        - capabilities
-        - limits
-      properties:
-        protocol:
-          type: string
-          const: increader-browser-capture
-          description: Stable protocol identity, not a schema version.
-        displayName:
-          type: string
-          minLength: 1
-          maxLength: 80
-          description: Safe instance label suitable for compact extension UI.
-        pairingAvailable:
-          type: boolean
-          description: Whether this instance currently accepts new pairings.
-        capabilities:
-          type: array
-          uniqueItems: true
-          items:
-            type: string
-            description: |
-              Capability name. Known base capabilities are shown as examples;
-              additional names are additive and must be tolerated.
-            examples:
-              - pairing
-              - bookmark-lookup
-              - capture-package
-          description: Additive Browser Capture operations advertised by the instance.
-        limits:
-          $ref: "#/components/schemas/BrowserCaptureLimits"
-      additionalProperties: true
-    BrowserCaptureLimits:
-      type: object
-      required:
-        - multipartRequestBytes
-        - manifestBytes
-        - documentHtmlBytes
-        - domElements
-        - assetRecords
-        - binaryAssets
-        - assetBytes
-        - aggregateAssetBytes
-        - urlBytes
-        - titleCodePoints
-        - languageTagCharacters
-        - producerFieldCodePoints
-        - contentScriptChunkBytes
-        - assetReadConcurrency
-        - assetTimeoutMilliseconds
-        - captureDeadlineMilliseconds
-        - transferDeadlineMilliseconds
-        - inFlightTransfersPerPairing
-        - inFlightTransfersPerUser
-        - transferAttemptsPerUserHour
-        - idempotencyRetentionDays
-      properties:
-        multipartRequestBytes:
-          type: integer
-          format: int64
-          minimum: 1
-        manifestBytes:
-          type: integer
-          format: int64
-          minimum: 1
-        documentHtmlBytes:
-          type: integer
-          format: int64
-          minimum: 1
-        domElements:
-          type: integer
-          minimum: 1
-        assetRecords:
-          type: integer
-          minimum: 0
-        binaryAssets:
-          type: integer
-          minimum: 0
-        assetBytes:
-          type: integer
-          format: int64
-          minimum: 1
-        aggregateAssetBytes:
-          type: integer
-          format: int64
-          minimum: 0
-        urlBytes:
-          type: integer
-          minimum: 1
-        titleCodePoints:
-          type: integer
-          minimum: 1
-        languageTagCharacters:
-          type: integer
-          minimum: 1
-        producerFieldCodePoints:
-          type: integer
-          minimum: 1
-        contentScriptChunkBytes:
-          type: integer
-          minimum: 1
-        assetReadConcurrency:
-          type: integer
-          minimum: 1
-        assetTimeoutMilliseconds:
-          type: integer
-          minimum: 1
-        captureDeadlineMilliseconds:
-          type: integer
-          minimum: 1
-        transferDeadlineMilliseconds:
-          type: integer
-          minimum: 1
-        inFlightTransfersPerPairing:
-          type: integer
-          minimum: 1
-        inFlightTransfersPerUser:
-          type: integer
-          minimum: 1
-        transferAttemptsPerUserHour:
-          type: integer
-          minimum: 1
-        idempotencyRetentionDays:
-          type: integer
-          minimum: 1
       additionalProperties: true

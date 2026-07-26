@@ -27,7 +27,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       title: "Extracted article",
     });
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => capture.promise,
       notifyFailure: vi.fn(),
       store,
@@ -83,7 +83,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     const transfer = vi.fn();
     const notifyFailure = vi.fn().mockResolvedValue(undefined);
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_renewed"),
+      accessToken: () => Promise.resolve("session_renewed"),
       capture: vi.fn(),
       notifyFailure,
       store,
@@ -124,7 +124,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       }),
     };
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: vi.fn(),
       notifyFailure: vi.fn(),
       store,
@@ -159,8 +159,8 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const accessToken = vi
       .fn()
-      .mockResolvedValueOnce("bca_first")
-      .mockResolvedValueOnce("bca_renewed");
+      .mockResolvedValueOnce("session_first")
+      .mockResolvedValueOnce("session_renewed");
     const transfer = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("connection closed"))
@@ -197,14 +197,14 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     expect(transfer).toHaveBeenNthCalledWith(
       1,
       "https://reader.example",
-      "bca_first",
+      "session_first",
       staged,
       expect.anything(),
     );
     expect(transfer).toHaveBeenNthCalledWith(
       2,
       "https://reader.example",
-      "bca_renewed",
+      "session_renewed",
       staged,
       expect.anything(),
     );
@@ -232,7 +232,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       ),
     );
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => Promise.resolve(staged),
       notifyFailure: vi.fn().mockResolvedValue(undefined),
       store,
@@ -287,7 +287,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       ),
     );
     const firstJob = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => Promise.resolve(staged),
       notifyFailure: vi.fn().mockResolvedValue(undefined),
       now: () => now,
@@ -311,7 +311,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       title: "Extracted article",
     });
     const restarted = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_renewed"),
+      accessToken: () => Promise.resolve("session_renewed"),
       capture: vi.fn(),
       notifyFailure: vi.fn(),
       now: () => now,
@@ -342,7 +342,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       };
       const transfer = vi.fn();
       const job = createCaptureJob({
-        accessToken: () => Promise.resolve("bca_memory"),
+        accessToken: () => Promise.resolve("session_memory"),
         capture: (_page, _progress, signal) => {
           signal.addEventListener("abort", () => {
             aborted = true;
@@ -381,7 +381,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const transfer = vi.fn();
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => capture.promise,
       notifyFailure,
       store,
@@ -432,7 +432,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const capture = vi.fn(() => new Promise<StagedCapturePackage>(() => {}));
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture,
       notifyFailure: vi.fn(),
       store,
@@ -459,7 +459,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       retryable: true,
     };
     const restored = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture,
       notifyFailure: vi.fn(),
       store,
@@ -490,7 +490,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const transfer = vi.fn();
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => Promise.resolve(packageFixture()),
       notifyFailure: vi.fn(),
       store,
@@ -546,7 +546,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
           }),
       );
       const job = createCaptureJob({
-        accessToken: () => Promise.resolve("bca_memory"),
+        accessToken: () => Promise.resolve("session_memory"),
         capture: () => Promise.resolve(packageFixture()),
         notifyFailure: vi.fn(),
         store,
@@ -585,7 +585,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const transfer = vi.fn(() => new Promise<never>(() => {}));
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => Promise.resolve(packageFixture()),
       clock: {
         clearTimeout: vi.fn(),
@@ -643,7 +643,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       clear: vi.fn(),
     };
     const transfer = vi.fn(() => transferResult.promise);
-    const accessToken = vi.fn().mockResolvedValue("bca_renewed");
+    const accessToken = vi.fn().mockResolvedValue("session_renewed");
     const job = createCaptureJob({
       accessToken,
       capture: vi.fn(),
@@ -687,7 +687,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
       }),
     };
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () => Promise.resolve(packageFixture()),
       notifyFailure: vi
         .fn()
@@ -725,7 +725,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
     };
     const attemptId = "019bf66c-42ac-7c33-b57d-e2131af04fe8";
     const job = createCaptureJob({
-      accessToken: () => Promise.resolve("bca_memory"),
+      accessToken: () => Promise.resolve("session_memory"),
       capture: () =>
         Promise.reject(
           new Error(

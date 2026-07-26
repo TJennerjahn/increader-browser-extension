@@ -1,271 +1,250 @@
 // @vitest-environment jsdom
 
-import { fireEvent, getByRole, getByText } from "@testing-library/dom";
+import {
+  fireEvent,
+  getByLabelText,
+  getByRole,
+  getByText,
+} from "@testing-library/dom";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Pairing } from "../pairing/pairing";
-import type { PairingClient } from "../browser/pairing-runtime";
+import {
+  CLOUD_INSTANCE_ORIGIN,
+  type Authentication,
+} from "../auth/authentication";
 import type {
   ActivePageInspection,
   ActivePageInspector,
 } from "../browser/active-page";
 import type { BookmarkLookupClient } from "../protocol/bookmark-lookup-http";
 import type { CaptureJobClient } from "../browser/capture-job-runtime";
-import { CLOUD_INSTANCE_ORIGIN, mountPopup } from "./popup";
+import { mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
-  it("starts disconnected and discovers Increader Cloud without inspecting a page", async () => {
-    const connect = vi.fn().mockResolvedValue({
-      origin: CLOUD_INSTANCE_ORIGIN,
-      displayName: "Increader Cloud",
-      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-    });
-    const pairing: Pairing = {
-      accessToken: () => Promise.reject(new Error("not paired")),
-      connect,
-      current: () => Promise.resolve(null),
-      currentOrigin: () => Promise.resolve(null),
-      disconnect: () => Promise.resolve(),
-      discover: () => Promise.reject(new Error("not used")),
-    };
+  it("does not flash sign-in while loading a stored account", async () => {
+    const current = deferred<
+      Awaited<ReturnType<Authentication["current"]>>
+    >();
+    const authentication = authenticated();
+    authentication.current = () => current.promise;
     const root = document.createElement("main");
 
-    mountPopup(root, pairing);
+    mountPopup(root, authentication);
 
-    expect(getByText(root, "Browser Capture")).toBeTruthy();
-    expect(getByText(root, "Not connected")).toBeTruthy();
-    expect(getByText(root, "Connection settings")).toBeTruthy();
-    expect(
-      getByRole<HTMLInputElement>(root, "textbox", {
-        name: "Increader instance origin",
-      }).value,
-    ).toBe(CLOUD_INSTANCE_ORIGIN);
-    expect(
-      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
-    ).toBe(false);
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      true,
+    );
     expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
       true,
     );
-    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
+
+    current.resolve({
+      displayName: "Home Reader",
+      email: "reader@example.com",
+      origin: "https://reader.example",
+    });
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
+    });
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
       true,
     );
+  });
 
-    fireEvent.click(
-      getByRole(root, "button", { name: "Connect to Increader" }),
+  it("starts signed out and signs in with the normal account form", async () => {
+    const signIn = vi.fn().mockResolvedValue({
+      displayName: "reader@example.com",
+      email: "reader@example.com",
+      origin: CLOUD_INSTANCE_ORIGIN,
+    });
+    const authentication: Authentication = {
+      accessToken: () => Promise.reject(new Error("not signed in")),
+      current: () => Promise.resolve(null),
+      currentOrigin: () => Promise.resolve(null),
+      signIn,
+      signInWithGoogle: () => Promise.reject(new Error("not used")),
+      signOut: () => Promise.resolve(),
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication);
+    await waitForLogin(root);
+
+    expect(getByText(root, "Browser Capture")).toBeTruthy();
+    expect(getByText(root, "Welcome back")).toBeTruthy();
+    expect(getByText(root, "Sign in to Increader")).toBeTruthy();
+    expect(
+      getByRole(root, "button", { name: "Continue with Google" }),
+    ).toBeTruthy();
+    expect(
+      root.querySelector<HTMLInputElement>("#self-hosted-origin")?.value,
+    ).toBe(CLOUD_INSTANCE_ORIGIN);
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      false,
     );
+    expect(
+      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
+    ).toBe(true);
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      true,
+    );
+    expect(
+      getByRole(root, "button", { name: "Open instance settings" }),
+    ).toBeTruthy();
+
+    fireEvent.input(
+      getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
+      { target: { value: "reader@example.com" } },
+    );
+    fireEvent.input(getByLabelText<HTMLInputElement>(root, "Password"), {
+      target: { value: "secret" },
+    });
+    const form = getByRole(root, "button", { name: "Sign in" }).closest("form");
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    fireEvent.submit(form);
     await vi.waitFor(() => {
-      expect(connect).toHaveBeenCalledWith(CLOUD_INSTANCE_ORIGIN);
-      expect(getByText(root, "Paired")).toBeTruthy();
+      expect(signIn).toHaveBeenCalledWith(
+        CLOUD_INSTANCE_ORIGIN,
+        "reader@example.com",
+        "secret",
+      );
       expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
         false,
       );
     });
   });
 
-  it("shows the paired state without a destination badge and disconnects explicitly", async () => {
-    const disconnect = vi.fn().mockResolvedValue(undefined);
-    const pairing: Pairing = {
-      accessToken: () => Promise.resolve("bca_memory"),
-      connect: vi.fn().mockResolvedValue({
-        displayName: "Home Reader",
-        installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-        origin: "https://reader.example",
-        pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-      }),
-      current: () =>
-        Promise.resolve({
-          displayName: "Home Reader",
-          installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-          origin: "https://reader.example",
-          pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-        }),
-      currentOrigin: () => Promise.resolve("https://reader.example"),
-      disconnect,
-      discover: () => Promise.reject(new Error("not used")),
-    };
-    const root = document.createElement("main");
-
-    mountPopup(root, pairing);
-
-    await vi.waitFor(() => {
-      expect(getByText(root, "Paired")).toBeTruthy();
-      expect(
-        getByRole(root, "button", { name: "Open connection settings" }),
-      ).toBeTruthy();
-    });
-    const settingsView = root.querySelector<HTMLElement>(
-      "[data-settings-view]",
-    );
-    const mainView = root.querySelector<HTMLElement>("[data-main-view]");
-    const connectionCard = root.querySelector("[data-connection-card]");
-    const pageCard = root.querySelector("[data-page-card]");
-    expect(settingsView?.contains(connectionCard)).toBe(true);
-    expect(mainView?.contains(pageCard)).toBe(true);
-    expect(settingsView?.hidden).toBe(true);
-    expect(mainView?.hidden).toBe(false);
-    fireEvent.click(
-      getByRole(root, "button", { name: "Open connection settings" }),
-    );
-    expect(settingsView?.hidden).toBe(false);
-    expect(mainView?.hidden).toBe(true);
-    expect(
-      root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.textContent.trim(),
-    ).toBe("");
-    expect(root.querySelector("[data-destination]")).toBeNull();
-    expect(root.textContent).not.toContain("Browser Capture sends only to");
-    expect(root.querySelector(".status-dot")).toBeNull();
-    const disconnectButton =
-      root.querySelector<HTMLButtonElement>("[data-disconnect]");
-    expect(disconnectButton?.hidden).toBe(false);
-    expect(disconnectButton?.closest(".section-heading")).not.toBeNull();
-    if (disconnectButton === null) return;
-    fireEvent.click(disconnectButton);
-    await vi.waitFor(() => {
-      expect(disconnect).toHaveBeenCalledOnce();
-      expect(getByText(root, "Not connected")).toBeTruthy();
-    });
-    expect(root.querySelector<HTMLButtonElement>("[data-view-toggle]")?.hidden).toBe(
-      true,
-    );
-  });
-
-  it("saves a self-hosted origin before the main button pairs with it", async () => {
-    const connect = vi.fn().mockResolvedValue({
-      origin: "https://reader.example",
+  it("signs in to a normalized self-hosted origin and remembers it", async () => {
+    const authentication = signedOut();
+    const signIn = vi.spyOn(authentication, "signIn").mockResolvedValue({
       displayName: "Home Reader",
-      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
+      email: "reader@example.com",
+      origin: "https://reader.example",
     });
-    const pairing: Pairing = {
-      accessToken: () => Promise.reject(new Error("not paired")),
-      connect,
-      current: () => Promise.resolve(null),
-      currentOrigin: () => Promise.resolve(null),
-      disconnect: () => Promise.resolve(),
-      discover: () => Promise.reject(new Error("not used")),
-    };
     const save = vi.fn().mockResolvedValue(undefined);
     const root = document.createElement("main");
-    mountPopup(root, pairing, undefined, {
+    mountPopup(root, authentication, undefined, {
       load: () => Promise.resolve(null),
       save,
     });
-    const input = getByRole<HTMLInputElement>(root, "textbox", {
-      name: "Increader instance origin",
+    await waitForLogin(root);
+    fireEvent.click(
+      getByRole(root, "button", { name: "Open instance settings" }),
+    );
+    expect(
+      root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
+    ).toBe(false);
+    const accountCard = root.querySelector<HTMLElement>(
+      "[data-connection-card]",
+    );
+    expect(accountCard?.hidden).toBe(true);
+    const instanceUrl = root.querySelector<HTMLInputElement>(
+      "#self-hosted-origin",
+    );
+    expect(instanceUrl).not.toBeNull();
+    if (instanceUrl === null) return;
+    fireEvent.input(instanceUrl, {
+      target: { value: "https://reader.example/" },
     });
-
-    fireEvent.input(input, { target: { value: "https://reader.example/" } });
-    const form = input.closest("form");
+    const originForm =
+      root.querySelector<HTMLFormElement>("[data-origin-form]");
+    expect(originForm).not.toBeNull();
+    if (originForm === null) return;
+    fireEvent.submit(originForm);
+    await vi.waitFor(() => {
+      expect(save).toHaveBeenCalledWith("https://reader.example");
+      expect(
+        root.querySelector<HTMLButtonElement>("[data-google-sign-in]")?.hidden,
+      ).toBe(true);
+    });
+    fireEvent.input(
+      getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
+      { target: { value: "reader@example.com" } },
+    );
+    fireEvent.input(getByLabelText<HTMLInputElement>(root, "Password"), {
+      target: { value: "secret" },
+    });
+    const form = getByRole(root, "button", { name: "Sign in" }).closest("form");
     expect(form).not.toBeNull();
     if (form === null) return;
     fireEvent.submit(form);
 
     await vi.waitFor(() => {
+      expect(signIn).toHaveBeenCalledWith(
+        "https://reader.example",
+        "reader@example.com",
+        "secret",
+      );
       expect(save).toHaveBeenCalledWith("https://reader.example");
-      expect(input.value).toBe("https://reader.example");
     });
-    expect(connect).not.toHaveBeenCalled();
 
     fireEvent.click(
-      getByRole(root, "button", { name: "Connect to Increader" }),
+      getByRole(root, "button", { name: "Open instance settings" }),
     );
-
-    await vi.waitFor(() => {
-      expect(connect).toHaveBeenCalledWith("https://reader.example");
-      expect(getByText(root, "Paired")).toBeTruthy();
-    });
+    expect(accountCard?.hidden).toBe(false);
+    expect(accountCard?.textContent).toContain("reader@example.com");
+    expect(accountCard?.textContent).not.toContain("Home Reader");
+    expect(accountCard?.textContent).not.toContain("Signed in");
+    expect(accountCard?.querySelector("[data-detail]")).toBeNull();
   });
 
-  it("restores the saved connection origin when the popup reopens", async () => {
-    const connect = vi.fn().mockResolvedValue({
-      origin: "https://reader.example",
-      displayName: "Home Reader",
-      installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
-      pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
-    });
-    const pairing: Pairing = {
-      accessToken: () => Promise.reject(new Error("not paired")),
-      connect,
-      current: () => Promise.resolve(null),
-      currentOrigin: () => Promise.resolve(null),
-      disconnect: () => Promise.resolve(),
-      discover: () => Promise.reject(new Error("not used")),
-    };
+  it("shows the normal client sign-in error", async () => {
+    const authentication = signedOut();
+    vi.spyOn(authentication, "signIn").mockRejectedValue(
+      new Error("Invalid email or password."),
+    );
     const root = document.createElement("main");
+    mountPopup(root, authentication);
+    await waitForLogin(root);
 
-    mountPopup(root, pairing, undefined, {
-      load: () => Promise.resolve("https://reader.example"),
-      save: vi.fn(),
-    });
-
-    await vi.waitFor(() => {
-      expect(
-        getByRole<HTMLInputElement>(root, "textbox", {
-          name: "Increader instance origin",
-        }).value,
-      ).toBe("https://reader.example");
-    });
-    fireEvent.click(
-      getByRole(root, "button", { name: "Connect to Increader" }),
+    fireEvent.input(
+      getByRole<HTMLInputElement>(root, "textbox", { name: "Email" }),
+      { target: { value: "reader@example.com" } },
     );
+    fireEvent.input(getByLabelText<HTMLInputElement>(root, "Password"), {
+      target: { value: "wrong" },
+    });
+    const form = getByRole(root, "button", { name: "Sign in" }).closest("form");
+    expect(form).not.toBeNull();
+    if (form === null) return;
+    fireEvent.submit(form);
 
     await vi.waitFor(() => {
-      expect(connect).toHaveBeenCalledWith("https://reader.example");
+      expect(getByRole(root, "status").textContent).toBe(
+        "Invalid email or password.",
+      );
     });
   });
 
-  it.each([
-    {
-      operation: {
-        phase: "waiting-permission",
-        origin: "https://reader.example",
-      } as const,
-      status: "Connecting…",
-      detail: "Allow access to this Increader instance in the browser prompt.",
-    },
-    {
-      operation: {
-        phase: "connecting",
-        origin: "https://reader.example",
-      } as const,
-      status: "Connecting…",
-      detail: "Approve Browser Capture in the Increader window.",
-    },
-    {
-      operation: {
-        phase: "failed",
-        origin: "https://reader.example",
-        message: "Pairing was cancelled.",
-      } as const,
-      status: "Not connected",
-      detail: "Pairing was cancelled.",
-    },
-  ])(
-    "restores $operation.phase Pairing state after reopening",
-    async ({ operation, status, detail }) => {
-      const pairing: PairingClient = {
-        accessToken: () => Promise.reject(new Error("not paired")),
-        connect: () => Promise.reject(new Error("not used")),
-        current: () => Promise.resolve(null),
-        currentOrigin: () => Promise.resolve(null),
-        disconnect: () => Promise.resolve(),
-        discover: () => Promise.reject(new Error("not used")),
-        observe: () => () => undefined,
-        operation: () => Promise.resolve(operation),
-      };
-      const root = document.createElement("main");
-
-      mountPopup(root, pairing);
-
-      await vi.waitFor(() => {
-        expect(getByText(root, status)).toBeTruthy();
-        expect(getByText(root, detail)).toBeTruthy();
+  it("offers Google sign-in only for Increader Cloud", async () => {
+    const authentication = signedOut();
+    const signInWithGoogle = vi
+      .spyOn(authentication, "signInWithGoogle")
+      .mockResolvedValue({
+        displayName: "google-reader@example.com",
+        email: "google-reader@example.com",
+        origin: CLOUD_INSTANCE_ORIGIN,
       });
-    },
-  );
+    const root = document.createElement("main");
+    mountPopup(root, authentication);
+    await waitForLogin(root);
 
-  it("shows a paired supported page as Ready without authorizing Import", async () => {
+    fireEvent.click(
+      getByRole(root, "button", { name: "Continue with Google" }),
+    );
+
+    await vi.waitFor(() => {
+      expect(signInWithGoogle).toHaveBeenCalledOnce();
+      expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+        false,
+      );
+    });
+  });
+
+  it("enables Import without showing redundant Ready feedback", async () => {
     const page: ActivePageInspection = {
       faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
@@ -280,7 +259,7 @@ describe("compact Browser Capture popup", () => {
     const importAuthorized = vi.fn();
     root.addEventListener("browser-capture-import", importAuthorized);
 
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage,
       lookup,
       openReader: vi.fn(),
@@ -291,19 +270,21 @@ describe("compact Browser Capture popup", () => {
       expect(
         getByText(root, "https://example.com/article?view=full"),
       ).toBeTruthy();
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(
+        getByRole<HTMLButtonElement>(root, "button", { name: "Import" })
+          .disabled,
+      ).toBe(false);
     });
     expect(lookupCall).toHaveBeenCalledWith(
       "https://reader.example",
-      "bca_memory",
+      "session_memory",
       "https://example.com/article?view=full",
     );
     expect(importAuthorized).not.toHaveBeenCalled();
     expect(
-      getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
-    ).toBe(false);
-    const favicon =
-      root.querySelector<HTMLImageElement>("[data-page-favicon]");
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
+    const favicon = root.querySelector<HTMLImageElement>("[data-page-favicon]");
     expect(favicon?.src).toBe("https://example.com/favicon.ico");
     expect(favicon?.hidden).toBe(false);
     const pageCard = root.querySelector("[data-page-card]");
@@ -322,11 +303,205 @@ describe("compact Browser Capture popup", () => {
     ).toBe(false);
   });
 
-  it("offers an existing owned Bookmark without opening Reader automatically", async () => {
-    const openReader = vi.fn().mockResolvedValue(undefined);
+  it("enables Import before background token access and lookup complete", async () => {
+    const token = deferred<string>();
+    const authentication = authenticated();
+    const accessToken = vi.fn(() => token.promise);
+    authentication.accessToken = accessToken;
+    const lookup = vi.fn().mockResolvedValue({ exists: false });
     const root = document.createElement("main");
 
-    mountPopup(root, paired(), {
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      lookup: { lookup },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(getByText(root, "Observed Article")).toBeTruthy();
+    });
+    expect(
+      getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
+    ).toBe(false);
+    expect(root.textContent).not.toContain("Checking Increader");
+    expect(lookup).not.toHaveBeenCalled();
+
+    token.resolve("session_memory");
+    await vi.waitFor(() => {
+      expect(lookup).toHaveBeenCalledOnce();
+    });
+    expect(accessToken).toHaveBeenCalledWith({
+      retainAccountOnExpiry: true,
+    });
+  });
+
+  it("keeps passive lookup failures invisible until a user action", async () => {
+    const authentication = authenticated();
+    const accessToken = vi
+      .fn()
+      .mockRejectedValue(new Error("Your Increader session has expired."));
+    authentication.accessToken = accessToken;
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      lookup: { lookup: vi.fn() },
+      openReader: vi.fn(),
+    });
+
+    const importButton =
+      root.querySelector<HTMLButtonElement>("[data-import]");
+    await vi.waitFor(() => {
+      expect(importButton?.disabled).toBe(false);
+    });
+    await vi.waitFor(() => {
+      expect(accessToken).toHaveBeenCalledOnce();
+    });
+    expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
+      false,
+    );
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      true,
+    );
+    expect(root.textContent).not.toContain(
+      "Your Increader session has expired.",
+    );
+  });
+
+  it("returns to sign-in when an import proves the stored session expired", async () => {
+    let connected = true;
+    const authentication = authenticated();
+    authentication.current = () =>
+      Promise.resolve(
+        connected
+          ? {
+              displayName: "Home Reader",
+              email: "reader@example.com",
+              origin: "https://reader.example",
+            }
+          : null,
+      );
+    let publish:
+      | ((state: Awaited<ReturnType<CaptureJobClient["current"]>>) => void)
+      | undefined;
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe(listener) {
+        publish = listener;
+        return () => {
+          publish = undefined;
+        };
+      },
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, authentication, {
+      activePage: inspector({
+        kind: "supported",
+        sourceUrl: "https://example.com/article",
+        tabId: 19,
+        title: "Observed Article",
+      }),
+      captureJob,
+      lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
+      openReader: vi.fn(),
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        root.querySelector<HTMLButtonElement>("[data-import]")?.disabled,
+      ).toBe(false);
+    });
+    connected = false;
+    publish?.({
+      phase: "failed",
+      captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+      message: "Your Increader session has expired.",
+      retryable: false,
+    });
+
+    await vi.waitFor(() => {
+      expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+        false,
+      );
+    });
+    expect(root.textContent).toContain("Your Increader session has expired.");
+  });
+
+  it("ignores a late existing-Bookmark lookup after Import starts", async () => {
+    const page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/article",
+      tabId: 19,
+      title: "Observed Article",
+    };
+    const result = deferred<{
+      bookmarkId: number;
+      exists: true;
+      title: string;
+    }>();
+    const startImport = vi.fn().mockResolvedValue({ status: "started" });
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport,
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+
+    mountPopup(root, authenticated(), {
+      activePage: inspector(page),
+      captureJob,
+      lookup: { lookup: () => result.promise },
+      openReader: vi.fn(),
+    });
+
+    const importButton =
+      root.querySelector<HTMLButtonElement>("[data-import]");
+    await vi.waitFor(() => {
+      expect(importButton?.disabled).toBe(false);
+    });
+    if (importButton === null) return;
+    fireEvent.click(importButton);
+    await vi.waitFor(() => {
+      expect(startImport).toHaveBeenCalledOnce();
+    });
+
+    result.resolve({
+      bookmarkId: 42,
+      exists: true,
+      title: "Saved Article",
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
+  });
+
+  it("offers an existing owned Bookmark without opening Reader automatically", async () => {
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    const closePopup = vi.fn();
+    const root = document.createElement("main");
+
+    mountPopup(root, authenticated(), {
       activePage: inspector({
         kind: "supported",
         sourceUrl: "https://example.com/saved",
@@ -341,24 +516,40 @@ describe("compact Browser Capture popup", () => {
         }),
       },
       openReader,
+      closePopup,
     });
+
+    const openBookmarkButton =
+      root.querySelector<HTMLButtonElement>("[data-open-reader]");
+    await vi.waitFor(() => {
+      expect(openBookmarkButton?.hidden).toBe(false);
+    });
+    expect(root.querySelector("[data-existing-bookmark-notice]")).toBeNull();
+    expect(root.textContent).not.toContain("Already in Increader");
+    expect(root.textContent).not.toContain("My Saved Title");
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
+    expect(openReader).not.toHaveBeenCalled();
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      true,
+    );
+
+    if (openBookmarkButton === null) return;
+    fireEvent.click(openBookmarkButton);
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
-      expect(getByText(root, "My Saved Title")).toBeTruthy();
+      expect(openReader).toHaveBeenCalledWith(
+        "https://reader.example/bookmarks/42",
+      );
+      expect(closePopup).toHaveBeenCalledOnce();
     });
-    expect(openReader).not.toHaveBeenCalled();
-
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
-
-    expect(openReader).toHaveBeenCalledWith(
-      "https://reader.example/bookmarks/42",
-    );
   });
 
-  it("surfaces an explicit Open Reader failure", async () => {
+  it("surfaces an explicit Open bookmark failure without closing the popup", async () => {
+    const closePopup = vi.fn();
     const root = document.createElement("main");
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: inspector({
         kind: "supported",
         sourceUrl: "https://example.com/saved",
@@ -373,23 +564,28 @@ describe("compact Browser Capture popup", () => {
         }),
       },
       openReader: vi.fn().mockRejectedValue(new Error("tabs.create failed")),
+      closePopup,
     });
+    const openBookmarkButton =
+      root.querySelector<HTMLButtonElement>("[data-open-reader]");
     await vi.waitFor(() => {
-      expect(getByText(root, "Already in Increader")).toBeTruthy();
+      expect(openBookmarkButton?.hidden).toBe(false);
     });
 
-    fireEvent.click(getByRole(root, "button", { name: "Open Reader" }));
+    if (openBookmarkButton === null) return;
+    fireEvent.click(openBookmarkButton);
 
     await vi.waitFor(() => {
       expect(getByText(root, "Could not open Reader")).toBeTruthy();
     });
+    expect(closePopup).not.toHaveBeenCalled();
   });
 
   it("keeps unsupported pages out of lookup and unable to Import", async () => {
     const lookup = vi.fn();
     const root = document.createElement("main");
 
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: inspector({
         kind: "unsupported",
         reason: "PDF pages cannot be imported.",
@@ -399,10 +595,16 @@ describe("compact Browser Capture popup", () => {
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(getByText(root, "Unsupported page")).toBeTruthy();
       expect(getByText(root, "PDF pages cannot be imported.")).toBeTruthy();
     });
     expect(lookup).not.toHaveBeenCalled();
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
+    expect(
+      root.querySelector<HTMLElement>("[data-page-source]")?.textContent,
+    ).toBe("PDF pages cannot be imported.");
     expect(
       getByRole<HTMLButtonElement>(root, "button", { name: "Import" }).disabled,
     ).toBe(true);
@@ -441,7 +643,7 @@ describe("compact Browser Capture popup", () => {
     root.addEventListener("browser-capture-import", (event) => {
       authorized.push((event as CustomEvent<ActivePageInspection>).detail);
     });
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
       openReader: vi.fn(),
@@ -463,8 +665,9 @@ describe("compact Browser Capture popup", () => {
     });
   });
 
-  it("commands the background job and renders capture progress, Sending, and Imported", async () => {
+  it("renders import progress on the favicon and replaces it with a completion checkmark", async () => {
     const page: ActivePageInspection = {
+      faviconUrl: "https://example.com/favicon.ico",
       kind: "supported",
       sourceUrl: "https://example.com/live",
       tabId: 24,
@@ -488,18 +691,33 @@ describe("compact Browser Capture popup", () => {
       },
     };
     const root = document.createElement("main");
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    const closePopup = vi.fn();
 
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: inspector(page),
       captureJob,
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
-      openReader: vi.fn(),
+      openReader,
+      closePopup,
     });
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
     await vi.waitFor(() => {
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(importButton?.disabled).toBe(false);
     });
+    const pageFeedback = root.querySelector<HTMLElement>(
+      "[data-page-feedback]",
+    );
+    const pageIcon = root.querySelector<HTMLElement>("[data-page-icon]");
+    const successIcon = root.querySelector<SVGElement>(
+      "[data-page-success-icon]",
+    );
+    const favicon = root.querySelector<HTMLImageElement>("[data-page-favicon]");
+    expect(pageFeedback?.hidden).toBe(true);
+    expect(pageIcon?.dataset.state).toBe("idle");
 
-    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+    if (importButton === null) return;
+    fireEvent.click(importButton);
 
     await vi.waitFor(() => {
       expect(startImport).toHaveBeenCalledWith(
@@ -508,24 +726,26 @@ describe("compact Browser Capture popup", () => {
         false,
       );
     });
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageIcon?.ariaLabel).toBe("Importing");
+    expect(pageFeedback?.hidden).toBe(true);
     observe?.({
       phase: "capturing",
       page,
       completedAssets: 2,
       totalAssets: 5,
     });
-    expect(getByText(root, "Capturing page")).toBeTruthy();
-    expect(getByText(root, "Capturing images 2 of 5…")).toBeTruthy();
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageFeedback?.hidden).toBe(true);
+    expect(successIcon?.hasAttribute("hidden")).toBe(true);
     expect(getByRole(root, "button", { name: "Cancel" })).toBeTruthy();
 
     observe?.({
       phase: "sending",
       captureId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
     });
-    expect(getByText(root, "Sending to Increader")).toBeTruthy();
-    expect(
-      getByText(root, "Waiting for Increader to finish importing…"),
-    ).toBeTruthy();
+    expect(pageIcon?.dataset.state).toBe("loading");
+    expect(pageFeedback?.hidden).toBe(true);
     expect(root.querySelector<HTMLButtonElement>("[data-cancel]")?.hidden).toBe(
       true,
     );
@@ -539,9 +759,24 @@ describe("compact Browser Capture popup", () => {
       origin: "https://reader.example",
     });
     await vi.waitFor(() => {
-      expect(getByText(root, "Imported")).toBeTruthy();
-      expect(getByText(root, "Extracted article")).toBeTruthy();
-      expect(getByRole(root, "button", { name: "Open Reader" })).toBeTruthy();
+      expect(getByRole(root, "button", { name: "Open bookmark" })).toBeTruthy();
+    });
+    expect(pageIcon?.dataset.state).toBe("completed");
+    expect(pageIcon?.ariaLabel).toBe("Import complete");
+    expect(pageFeedback?.hidden).toBe(true);
+    expect(favicon?.hidden).toBe(true);
+    expect(successIcon?.hasAttribute("hidden")).toBe(false);
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      true,
+    );
+
+    fireEvent.click(getByRole(root, "button", { name: "Open bookmark" }));
+
+    await vi.waitFor(() => {
+      expect(openReader).toHaveBeenCalledWith(
+        "https://reader.example/bookmarks/84",
+      );
+      expect(closePopup).toHaveBeenCalledOnce();
     });
   });
 
@@ -563,7 +798,7 @@ describe("compact Browser Capture popup", () => {
       observe: () => () => undefined,
     };
     const root = document.createElement("main");
-    mountPopup(root, pairedAt("https://replacement-reader.example"), {
+    mountPopup(root, authenticatedAt("https://replacement-reader.example"), {
       activePage: inspector({
         kind: "supported",
         sourceUrl: "https://publisher.example/article",
@@ -574,10 +809,14 @@ describe("compact Browser Capture popup", () => {
       lookup: { lookup: vi.fn().mockResolvedValue({ exists: false }) },
       openReader: vi.fn(),
     });
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Ready")).toBeTruthy();
+      expect(importButton?.disabled).toBe(false);
     });
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
     expect(root.textContent).not.toContain("Extracted article");
     expect(
       root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
@@ -603,7 +842,7 @@ describe("compact Browser Capture popup", () => {
       observe: () => () => undefined,
     };
     const root = document.createElement("main");
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: {
         inspect: () => inspected.promise,
         observe: () => () => undefined,
@@ -618,12 +857,15 @@ describe("compact Browser Capture popup", () => {
     });
 
     await vi.waitFor(() => {
-      expect(getByText(root, "Unsupported")).toBeTruthy();
+      expect(getByText(root, "Unsupported page")).toBeTruthy();
       expect(
         getByText(root, "Browser-protected pages cannot be imported."),
       ).toBeTruthy();
     });
     expect(root.textContent).not.toContain("Extracted article");
+    expect(
+      root.querySelector<HTMLElement>("[data-page-feedback]")?.hidden,
+    ).toBe(true);
   });
 
   it("offers explicit Retry and Discard and confirms replacement before a new Import", async () => {
@@ -655,7 +897,7 @@ describe("compact Browser Capture popup", () => {
       observe: () => () => undefined,
     };
     const root = document.createElement("main");
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: inspector(page),
       captureJob,
       confirmReplacement,
@@ -707,7 +949,7 @@ describe("compact Browser Capture popup", () => {
     };
     const root = document.createElement("main");
 
-    mountPopup(root, paired(), {
+    mountPopup(root, authenticated(), {
       activePage: inspector({
         kind: "supported",
         sourceUrl: "https://publisher.example/rejected",
@@ -753,7 +995,7 @@ describe("compact Browser Capture popup", () => {
         observe: () => () => undefined,
       };
       const root = document.createElement("main");
-      mountPopup(root, paired(), {
+      mountPopup(root, authenticated(), {
         activePage: inspector({
           kind: "supported",
           sourceUrl: "https://publisher.example/limited",
@@ -780,24 +1022,34 @@ describe("compact Browser Capture popup", () => {
   });
 });
 
-function paired(): Pairing {
-  return pairedAt("https://reader.example");
+function signedOut(): Authentication {
+  return {
+    accessToken: () => Promise.reject(new Error("not signed in")),
+    current: () => Promise.resolve(null),
+    currentOrigin: () => Promise.resolve(null),
+    signIn: () => Promise.reject(new Error("not used")),
+    signInWithGoogle: () => Promise.reject(new Error("not used")),
+    signOut: () => Promise.resolve(),
+  };
 }
 
-function pairedAt(origin: string): Pairing {
+function authenticated(): Authentication {
+  return authenticatedAt("https://reader.example");
+}
+
+function authenticatedAt(origin: string): Authentication {
   return {
-    accessToken: () => Promise.resolve("bca_memory"),
-    connect: () => Promise.reject(new Error("not used")),
+    accessToken: () => Promise.resolve("session_memory"),
     current: () =>
       Promise.resolve({
         displayName: "Home Reader",
-        installationId: "019bf66c-42ac-7c33-b57d-e2131af04fe9",
+        email: "reader@example.com",
         origin,
-        pairingId: "019bf66d-29df-7a41-950f-c4b36a9d61bd",
       }),
     currentOrigin: () => Promise.resolve(origin),
-    disconnect: () => Promise.resolve(),
-    discover: () => Promise.reject(new Error("not used")),
+    signIn: () => Promise.reject(new Error("not used")),
+    signInWithGoogle: () => Promise.reject(new Error("not used")),
+    signOut: () => Promise.resolve(),
   };
 }
 
@@ -806,6 +1058,14 @@ function inspector(page: ActivePageInspection): ActivePageInspector {
     inspect: () => Promise.resolve(page),
     observe: () => () => undefined,
   };
+}
+
+async function waitForLogin(root: HTMLElement): Promise<void> {
+  await vi.waitFor(() => {
+    expect(root.querySelector<HTMLElement>("[data-login-view]")?.hidden).toBe(
+      false,
+    );
+  });
 }
 
 function deferred<T>(): {

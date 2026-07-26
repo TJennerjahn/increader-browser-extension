@@ -4,115 +4,6 @@
  */
 
 export interface paths {
-    "/api/browser-capture/discovery": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Discover Browser Capture support
-         * @description Returns a public, non-User-specific description of this instance's
-         *     Browser Capture compatibility and effective limits. This is not an
-         *     operational health endpoint.
-         */
-        get: operations["discoverBrowserCapture"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairing/approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve one Browser Extension Installation
-         * @description Uses the instance's existing Account Identity context to display and
-         *     record explicit User approval. The Browser Extension receives only a
-         *     five-minute, single-use authorization code. The requested instance
-         *     origin must equal the receiving server's canonical request origin.
-         */
-        post: operations["approveBrowserCapturePairing"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairing/exchange": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Establish a pairing with a PKCE-bound approval code
-         * @description This token operation ignores Account Identity cookies. The code,
-         *     verifier, instance, callback, state, and installation must match the
-         *     approved request exactly.
-         */
-        post: operations["exchangeBrowserCapturePairingCode"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairing/renew": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rotate a pairing's renewal credential on demand
-         * @description This token operation ignores Account Identity cookies. Successful
-         *     renewal rotates the opaque credential and restarts its 90-day
-         *     inactivity window.
-         */
-        post: operations["renewBrowserCapturePairing"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairing/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke the calling Browser Extension Installation
-         * @description This token operation ignores Account Identity cookies.
-         */
-        post: operations["disconnectBrowserCapturePairing"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/browser-capture/bookmarks/lookup": {
         parameters: {
             query?: never;
@@ -122,12 +13,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Find an owned Bookmark at the exact Capture Source URL
-         * @description Performs one User-scoped exact-string URL lookup through the calling
-         *     Browser Capture Pairing. This is not library search and does not apply
-         *     canonical, redirect, tracking-parameter, or other URL equivalence.
-         */
+        /** Find an owned Bookmark at the exact Capture Source URL */
         post: operations["lookupBrowserCaptureBookmark"];
         delete?: never;
         options?: never;
@@ -144,53 +30,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Import one immutable Capture Package
-         * @description Accepts one atomic Capture Package from the calling Pairing. Captured
-         *     binary asset parts use their Capture Asset ID as the multipart field
-         *     name. The Capture Source URL remains Bookmark identity while canonical
-         *     and base URLs are metadata/resolution hints. Capture ID idempotency is
-         *     scoped to the paired User and logical package fingerprint. The encoded
-         *     multipart request must have a fixed Content-Length no greater than
-         *     64 MiB and must not use a non-identity Content-Encoding.
-         */
+        /** Import captured HTML and selected images */
         post: operations["importBrowserCapturePackage"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the current User's paired installations */
-        get: operations["listBrowserCapturePairings"];
-        put?: never;
-        post?: never;
-        /** Revoke all paired installations for the current User */
-        delete: operations["revokeAllBrowserCapturePairings"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/browser-capture/pairings/{pairingId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke one paired installation owned by the current User */
-        delete: operations["revokeBrowserCapturePairing"];
         options?: never;
         head?: never;
         patch?: never;
@@ -200,73 +42,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        BrowserCapturePairingApprovalRequest: {
-            /** Format: uri */
-            instanceOrigin: string;
-            /** Format: uuid */
-            installationId: string;
-            installationName: string;
-            /** Format: uri */
-            callbackUri: string;
-            state: string;
-            codeChallenge: string;
-            /** @constant */
-            codeChallengeMethod: "S256";
-        };
-        BrowserCapturePairingApproval: {
-            authorizationCode: string;
-            /** Format: uri */
-            callbackUri: string;
-            state: string;
-        };
-        BrowserCapturePairingExchange: {
-            authorizationCode: string;
-            codeVerifier: string;
-            /** Format: uri */
-            instanceOrigin: string;
-            /** Format: uuid */
-            installationId: string;
-            /** Format: uri */
-            callbackUri: string;
-            state: string;
-        };
-        BrowserCapturePairingRenewal: {
-            renewalCredential: string;
-            /** Format: uuid */
-            installationId: string;
-            /** Format: uri */
-            instanceOrigin: string;
-        };
-        BrowserCapturePairingCredentials: {
-            /** @constant */
-            tokenType: "Bearer";
-            accessToken: string;
-            /** @constant */
-            expiresInSeconds: 600;
-            renewalCredential: string;
-            /** @constant */
-            renewalExpiresInSeconds: 7776000;
-            /** Format: uuid */
-            pairingId: string;
-        };
-        BrowserCapturePairingSummary: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            installationId: string;
-            installationName: string;
-            /** Format: uri */
-            instanceOrigin: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            lastRenewedAt: string;
-        };
         BrowserCaptureBookmarkLookup: {
             exists: boolean;
-            /** @description Present only for an owned Bookmark at the exact URL. */
             bookmarkId?: number;
-            /** @description Present only when the existing owned Bookmark has a title. */
             title?: string;
         };
         BrowserCaptureBookmarkLookupRequest: {
@@ -277,38 +55,20 @@ export interface components {
             sourceUrl: string;
         };
         BrowserCapturePackageManifest: {
-            /**
-             * Format: uuid
-             * @description Globally unique identity allocated for one Import authorization.
-             */
+            /** Format: uuid */
             captureId: string;
             /** Format: date-time */
             capturedAt: string;
-            /**
-             * Format: uri
-             * @description Final fragment-free top-level HTTP(S) Bookmark identity.
-             */
+            /** Format: uri */
             sourceUrl: string;
-            /**
-             * Format: uri
-             * @description Absolute HTTP(S) base used only to resolve captured references.
-             */
+            /** Format: uri */
             baseUrl: string;
-            /**
-             * Format: uri
-             * @description Optional validated publisher hint; never Bookmark identity.
-             */
+            /** Format: uri */
             canonicalUrl?: string;
-            /** @description Observed fallback hint; Article Extraction remains authoritative. */
             title?: string;
             language?: string;
             document: components["schemas"]["BrowserCaptureDocumentDigest"];
             producer: components["schemas"]["BrowserCaptureProducer"];
-            /**
-             * @description Ordered by the first corresponding opaque marker in the document.
-             *     Repeated markers may reference one record. Every record must be
-             *     referenced and captured records require one same-ID binary part.
-             */
             assets: components["schemas"]["BrowserCaptureAsset"][];
         } & {
             [key: string]: unknown;
@@ -316,11 +76,7 @@ export interface components {
         BrowserCaptureAsset: components["schemas"]["BrowserCaptureCapturedAsset"] | components["schemas"]["BrowserCaptureUnavailableAsset"];
         BrowserCaptureCapturedAsset: {
             id: string;
-            /**
-             * Format: uri
-             * @description Resolved selected image provenance. Captured data images use the
-             *     bounded non-replayable value `data:`.
-             */
+            /** Format: uri */
             sourceUrl: string;
             /** @enum {string} */
             status: "captured";
@@ -331,11 +87,7 @@ export interface components {
         };
         BrowserCaptureUnavailableAsset: {
             id: string;
-            /**
-             * Format: uri
-             * @description Resolved selected image provenance. Non-replayable data images use
-             *     `data:` and blob images retain their bounded blob URL.
-             */
+            /** Format: uri */
             sourceUrl: string;
             /** @enum {string} */
             status: "unavailable";
@@ -350,7 +102,6 @@ export interface components {
             extensionVersion: string;
             browser: string;
         };
-        /** @description Existing normal Increader BookmarkResponse; no Capture metadata. */
         BookmarkResponse: {
             id: number;
             /** Format: uri */
@@ -360,58 +111,11 @@ export interface components {
             [key: string]: unknown;
         };
         BrowserCaptureProblem: {
-            type?: string;
             title: string;
             status: number;
             detail?: string;
             /** @enum {string} */
-            code: "capture_package_invalid" | "capture_id_conflict" | "capture_request_too_large" | "capture_content_length_required" | "capture_transfer_limited";
-        } & {
-            [key: string]: unknown;
-        };
-        BrowserCaptureDiscovery: {
-            /**
-             * @description Stable protocol identity, not a schema version.
-             * @constant
-             */
-            protocol: "increader-browser-capture";
-            /** @description Safe instance label suitable for compact extension UI. */
-            displayName: string;
-            /** @description Whether this instance currently accepts new pairings. */
-            pairingAvailable: boolean;
-            /** @description Additive Browser Capture operations advertised by the instance. */
-            capabilities: string[];
-            limits: components["schemas"]["BrowserCaptureLimits"];
-        } & {
-            [key: string]: unknown;
-        };
-        BrowserCaptureLimits: {
-            /** Format: int64 */
-            multipartRequestBytes: number;
-            /** Format: int64 */
-            manifestBytes: number;
-            /** Format: int64 */
-            documentHtmlBytes: number;
-            domElements: number;
-            assetRecords: number;
-            binaryAssets: number;
-            /** Format: int64 */
-            assetBytes: number;
-            /** Format: int64 */
-            aggregateAssetBytes: number;
-            urlBytes: number;
-            titleCodePoints: number;
-            languageTagCharacters: number;
-            producerFieldCodePoints: number;
-            contentScriptChunkBytes: number;
-            assetReadConcurrency: number;
-            assetTimeoutMilliseconds: number;
-            captureDeadlineMilliseconds: number;
-            transferDeadlineMilliseconds: number;
-            inFlightTransfersPerPairing: number;
-            inFlightTransfersPerUser: number;
-            transferAttemptsPerUserHour: number;
-            idempotencyRetentionDays: number;
+            code: "capture_package_invalid";
         } & {
             [key: string]: unknown;
         };
@@ -424,164 +128,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    discoverBrowserCapture: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Compatible Browser Capture discovery document */
-            200: {
-                headers: {
-                    /** @description Discovery is returned with `no-store`. */
-                    "Cache-Control"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrowserCaptureDiscovery"];
-                };
-            };
-        };
-    };
-    approveBrowserCapturePairing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BrowserCapturePairingApprovalRequest"];
-            };
-        };
-        responses: {
-            /** @description Single-use approval code bound to the exact request */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrowserCapturePairingApproval"];
-                };
-            };
-            /** @description Invalid pairing request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Account Identity authentication is required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Browser Capture Pairing is unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    exchangeBrowserCapturePairingCode: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BrowserCapturePairingExchange"];
-            };
-        };
-        responses: {
-            /** @description Capture-scoped credentials for the paired installation */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrowserCapturePairingCredentials"];
-                };
-            };
-            /** @description Invalid, expired, used, or incorrectly bound code */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    renewBrowserCapturePairing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BrowserCapturePairingRenewal"];
-            };
-        };
-        responses: {
-            /** @description Rotated renewal credential and ten-minute access token */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrowserCapturePairingCredentials"];
-                };
-            };
-            /** @description Invalid, expired, replayed, or incorrectly bound credential */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    disconnectBrowserCapturePairing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BrowserCapturePairingRenewal"];
-            };
-        };
-        responses: {
-            /** @description Pairing revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invalid or incorrectly bound credential */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     lookupBrowserCaptureBookmark: {
         parameters: {
             query?: never;
@@ -589,10 +135,6 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description Minimal request body keeps the publisher URL out of request targets
-         *     and ordinary proxy/access logs.
-         */
         requestBody: {
             content: {
                 "application/json": components["schemas"]["BrowserCaptureBookmarkLookupRequest"];
@@ -615,7 +157,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid or expired Browser Capture Access Token */
+            /** @description Normal Increader authentication is required */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -646,7 +188,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The normal existing Bookmark outcome */
+            /** @description An existing Bookmark was returned */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -665,7 +207,7 @@ export interface operations {
                     "application/json": components["schemas"]["BookmarkResponse"];
                 };
             };
-            /** @description The complete Capture Package is invalid */
+            /** @description The Capture Package is invalid */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -674,95 +216,8 @@ export interface operations {
                     "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
                 };
             };
-            /** @description Invalid or expired Browser Capture Access Token */
+            /** @description Normal Increader authentication is required */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Capture ID was used for different logical content */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
-                };
-            };
-            /** @description Encoded multipart request exceeds 64 MiB */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
-                };
-            };
-            /** @description Browser Capture transfer concurrency or rate limit */
-            429: {
-                headers: {
-                    /** @description Bounded whole seconds before an explicit Retry. */
-                    "Retry-After": number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["BrowserCaptureProblem"];
-                };
-            };
-        };
-    };
-    listBrowserCapturePairings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Active Browser Extension Installations */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BrowserCapturePairingSummary"][];
-                };
-            };
-        };
-    };
-    revokeAllBrowserCapturePairings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description All pairings revoked */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    revokeBrowserCapturePairing: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pairingId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pairing revoked or already absent */
-            204: {
                 headers: {
                     [name: string]: unknown;
                 };

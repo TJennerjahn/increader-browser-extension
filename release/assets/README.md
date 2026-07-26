@@ -5,15 +5,39 @@
 `f8dcf003f9ecf30a47d7dfe2185ff7eece9fadac` (SHA-256
 `ad72e83008e8605880eaaefe176100f307107535226693d8bd6df9f23d743f78`).
 
-`listing-screenshot.png` was captured by
-`scripts/capture-listing-screenshot.mjs` from the exact 0.1.0 Chrome upload ZIP
-in Chrome for Testing 150.0.7871.24. Its popup pixels are the real production
-disconnected UI; the surrounding checked-in canvas contains explanatory
-release copy only. Its SHA-256 is
-`25b3e79f9bf836e043c84413be6e2cf6926f9e0ffddab50f2b2492d374119c5c`.
+`listing-screenshot.png` and `chrome-promo.png` were created with Codex's
+built-in image generator, then resized once with Sharp to their exact store
+dimensions. They are illustrative marketing artwork and contain no publisher
+or User content. Their SHA-256 values are:
 
-`chrome-promo.svg` is synthetic release artwork. Its SHA-256 is
-`3a105ac2ab9debe705861bdb51f237f1f0be114038f2da4d0d27b715376b573d`.
-Neither asset contains publisher or User content. `scripts/build.mjs` copies
-the actual screenshot and deterministically rasters the promo and runtime icon
-masters into the release output.
+- `listing-screenshot.png`:
+  `79c9d6d4cf4d3482bb54a1b6fbbf7ad643faf81898f0ed5bc877800435d00491`
+- `chrome-promo.png`:
+  `4879ae553de38923381190b597c3ceabe4dcef2b673d103b5907274d673f26c0`
+
+The listing screenshot prompt requested a premium 16:10 Increader store visual
+with the exact headline “Save it now. Read it later.”, the supporting line
+“Capture any article and continue in Increader.”, and an illustrative compact
+Import card. It uses the current Increader homepage and the supplied
+pricing-page screenshot as style references.
+
+The promotional-tile prompt requested a compact 11:7 companion asset with the
+exact product name “Increader”, the tagline “Save it now. Read it later.”, the
+open-book mark, and the same landing-page campaign style.
+
+The active assets use Increader's warm off-white landing-page canvas, dark navy
+typography, saturated indigo-purple accents, pale lavender organic shapes, thin
+hand-drawn loops, sparse geometric details, rounded white cards, and the exact
+slogan “Save it now. Read it later.”
+
+`alternatives/dark/` preserves the previous deep-indigo campaign. Its SHA-256
+values are:
+
+- `alternatives/dark/listing-screenshot.png`:
+  `5d7187ad054ea6f52f783684c5e9eb072f0ed16b2c663553d5788ea9d025933b`
+- `alternatives/dark/chrome-promo.png`:
+  `f0480bd72b26ec05e93e959b50b5165aa877390a50e34a1606c4c1b4d925982d`
+
+`scripts/build.mjs` copies both generated raster masters into the release output
+without composing or rendering additional marketing artwork. It continues to
+raster the canonical runtime icon separately from `increader-mark.svg`.

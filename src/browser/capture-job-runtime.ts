@@ -147,7 +147,7 @@ export function createCaptureFailureNotifier(
         {
           type: "basic",
           iconUrl: chrome.runtime.getURL("notification.svg"),
-          title: "Browser Capture needs attention",
+          title: "Increader needs attention",
           message,
           requireInteraction: true,
         },
@@ -163,17 +163,17 @@ export function createCaptureFailureNotifier(
     });
 }
 
-export function createOriginBoundAccessToken(pairing: {
+export function createOriginBoundAccessToken(authentication: {
   currentOrigin(): Promise<string | null>;
   accessToken(): Promise<string>;
 }): (origin: string) => Promise<string> {
   return async (origin) => {
-    if ((await pairing.currentOrigin()) !== origin) {
+    if ((await authentication.currentOrigin()) !== origin) {
       throw new Error(
-        "Reconnect to this Capture Package's Increader instance before Retry.",
+        "Sign in to this Capture Package's Increader instance before Retry.",
       );
     }
-    return pairing.accessToken();
+    return authentication.accessToken();
   };
 }
 
@@ -341,10 +341,10 @@ function updateAction(
       : state.phase === "sending"
         ? { badge: "↑", color: "#2563eb", title: "Sending to Increader" }
         : state.phase === "completed"
-          ? { badge: "✓", color: "#15803d", title: "Imported to Increader" }
+          ? { badge: "", color: "#64748b", title: "Imported to Increader" }
           : state.phase === "failed"
             ? { badge: "!", color: "#b91c1c", title: "Needs attention" }
-            : { badge: "", color: "#64748b", title: "Browser Capture" };
+            : { badge: "", color: "#64748b", title: "Increader" };
   void action.setBadgeText({ text: presentation.badge }).catch(() => undefined);
   void action
     .setBadgeBackgroundColor({ color: presentation.color })

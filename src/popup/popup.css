@@ -72,7 +72,6 @@ body {
 
 body {
   width: 384px;
-  min-height: 320px;
   color: oklch(var(--bc));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -179,6 +178,139 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.login-view {
+  gap: 16px;
+  padding: 4px 8px 8px;
+}
+
+.auth-heading {
+  display: grid;
+  gap: 5px;
+}
+
+.auth-heading h2 {
+  margin: 0;
+  color: oklch(var(--bc));
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.auth-eyebrow {
+  margin: 0;
+  color: oklch(var(--bc) / 0.58);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.google-action {
+  height: 52px;
+  min-height: 52px;
+  border-color: oklch(var(--bc) / 0.17);
+  color: oklch(var(--bc));
+  background: oklch(var(--b1));
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.google-action:hover {
+  border-color: oklch(var(--bc) / 0.28);
+  color: oklch(var(--bc));
+  background: oklch(var(--b2) / 0.55);
+}
+
+.google-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.auth-divider {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  grid-template-columns: 1fr auto 1fr;
+  color: oklch(var(--bc) / 0.48);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.auth-divider > :first-child,
+.auth-divider > :last-child {
+  height: 1px;
+  background: oklch(var(--bc) / 0.14);
+}
+
+.auth-feedback,
+.settings-feedback {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid oklch(var(--er) / 0.25);
+  border-radius: 9px;
+  color: oklch(var(--er));
+  background: oklch(var(--er) / 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.login-form {
+  display: grid;
+  gap: 8px;
+}
+
+.login-form .label {
+  padding: 4px 3px 0;
+}
+
+.login-form .label-text {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.login-form .input {
+  height: 50px;
+  border-radius: 9px;
+  font-size: 15px;
+}
+
+.login-form .primary-action {
+  height: 50px;
+  min-height: 50px;
+  margin-top: 8px;
+  background: linear-gradient(110deg, #5b19ff, #4c00ff);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+.forgot-action {
+  padding: 0;
+  border: 0;
+  color: oklch(var(--bc) / 0.55);
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.forgot-action:hover {
+  color: oklch(var(--bc));
+  text-decoration: underline;
+}
+
+.instance-hint {
+  margin: -4px 0 0;
+  overflow: hidden;
+  color: oklch(var(--bc) / 0.48);
+  font-size: 10.5px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .view-heading {
@@ -289,21 +421,12 @@ h1 {
 
 .connection-status {
   margin: 0;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 650;
   line-height: 1.25;
-}
-
-.connection-detail {
-  min-height: 34px;
-  margin: 1px 0 2px;
-  color: oklch(var(--bc) / 0.68);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.connection-detail:empty {
-  display: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .connection-actions {
@@ -325,6 +448,7 @@ h1 {
 }
 
 .page-icon {
+  position: relative;
   display: grid;
   width: 34px;
   height: 34px;
@@ -334,6 +458,55 @@ h1 {
   border-radius: 8px;
   color: oklch(var(--bc) / 0.48);
   background: oklch(var(--b2));
+}
+
+.page-icon[data-state="completed"] {
+  color: oklch(var(--p));
+  background: oklch(var(--p) / 0.1);
+}
+
+.page-icon .page-icon-progress {
+  position: absolute;
+  inset: 0;
+  width: 34px;
+  height: 34px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.page-icon-progress rect {
+  fill: none;
+  stroke-width: 2;
+}
+
+.page-icon-progress-track {
+  stroke: oklch(var(--p) / 0.2);
+}
+
+.page-icon-progress-indicator {
+  stroke: oklch(var(--p));
+  stroke-linecap: round;
+}
+
+.page-icon[data-state="loading"] .page-icon-progress {
+  opacity: 1;
+}
+
+.page-icon[data-state="loading"] .page-icon-progress-indicator {
+  animation: page-icon-progress 850ms linear infinite;
+}
+
+@keyframes page-icon-progress {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-icon[data-state="loading"] .page-icon-progress-indicator {
+    stroke-dasharray: none;
+    animation: none;
+  }
 }
 
 .page-favicon {
@@ -351,6 +524,12 @@ h1 {
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.page-icon .page-success-icon {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.2;
 }
 
 .page-title {

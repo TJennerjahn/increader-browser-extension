@@ -25,10 +25,15 @@ const expectedFiles = [
 ].sort();
 const expectedPermissions = [
   "activeTab",
-  "identity",
+  "cookies",
+  "declarativeNetRequestWithHostAccess",
   "notifications",
   "scripting",
   "storage",
+];
+const expectedRequiredHosts = [
+  "https://app.increader.com/*",
+  "https://clerk.increader.com/*",
 ];
 const expectedOptionalHosts = [
   "http://127.0.0.1/*",
@@ -67,6 +72,11 @@ for (const browser of ["chrome", "firefox"]) {
     `${browser} required permissions`,
     builtManifest.permissions,
     expectedPermissions,
+  );
+  assertSameSet(
+    `${browser} required host permissions`,
+    builtManifest.host_permissions,
+    expectedRequiredHosts,
   );
   assertSameSet(
     `${browser} optional host permissions`,
@@ -169,6 +179,11 @@ assertSameSet(
   "permission report required permissions",
   permissionReport.expectedRequired,
   expectedPermissions,
+);
+assertSameSet(
+  "permission report required hosts",
+  permissionReport.expectedRequiredHosts,
+  expectedRequiredHosts,
 );
 assertSameSet(
   "permission report optional hosts",

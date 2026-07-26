@@ -32,7 +32,7 @@ describe("Capture Package multipart transfer", () => {
     const staged = packageFixture();
 
     await expect(
-      client.transfer("https://reader.example", "bca_memory", staged),
+      client.transfer("https://reader.example", "session_memory", staged),
     ).resolves.toEqual({
       bookmarkId: 42,
       created,
@@ -43,7 +43,7 @@ describe("Capture Package multipart transfer", () => {
     expect(url).toBe("https://reader.example/api/browser-capture/captures");
     expect(request.credentials).toBe("omit");
     expect(request.headers).toEqual({
-      Authorization: "Bearer bca_memory",
+      Authorization: "Bearer session_memory",
       "Content-Type":
         "multipart/form-data; boundary=----increader-browser-capture-019c0000-0000-7000-8000-000000000001",
     });
@@ -97,7 +97,7 @@ describe("Capture Package multipart transfer", () => {
     );
 
     const error = await createCapturePackageHttpClient(fetcher)
-      .transfer("https://reader.example", "bca_memory", packageFixture())
+      .transfer("https://reader.example", "session_memory", packageFixture())
       .catch((reason: unknown) => reason);
     expect(error).toBeInstanceOf(CaptureTransferError);
     expect(error).toMatchObject({
@@ -134,7 +134,7 @@ describe("Capture Package multipart transfer", () => {
     await expect(
       client.transfer(
         "https://reader.example",
-        "bca_memory",
+        "session_memory",
         packageFixture(),
       ),
     ).rejects.toMatchObject({
@@ -146,7 +146,7 @@ describe("Capture Package multipart transfer", () => {
     await expect(
       client.transfer(
         "https://reader.example",
-        "bca_memory",
+        "session_memory",
         packageFixture(),
       ),
     ).rejects.toMatchObject({

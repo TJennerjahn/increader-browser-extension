@@ -1,14 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "Increader Browser Capture",
-  "version": "0.1.0",
-  "description": "Send the current page to your paired Increader instance.",
+  "name": "Increader",
+  "version": "0.1.1",
+  "description": "Sign in and send the current page to your Increader instance.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "identity",
-    "notifications"
+    "cookies",
+    "notifications",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": [
+    "https://app.increader.com/*",
+    "https://clerk.increader.com/*"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -27,7 +32,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Increader Browser Capture",
+    "default_title": "Increader",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",

@@ -108,9 +108,10 @@ async function buildReleaseBundle() {
       path.join(repositoryRoot, "release", "assets", "listing-screenshot.png"),
       path.join(listingRoot, "screenshot-1280x800.png"),
     ),
-    sharp(path.join(repositoryRoot, "release", "assets", "chrome-promo.svg"))
-      .png({ adaptiveFiltering: false, compressionLevel: 9 })
-      .toFile(path.join(listingRoot, "chrome-promo-440x280.png")),
+    cp(
+      path.join(repositoryRoot, "release", "assets", "chrome-promo.png"),
+      path.join(listingRoot, "chrome-promo-440x280.png"),
+    ),
   ]);
 
   const reviewerEntries = await reviewerSourceEntries();
@@ -221,6 +222,7 @@ async function buildPermissionReport() {
     );
     reports[browser] = {
       required: [...manifest.permissions].sort(),
+      requiredHosts: [...manifest.host_permissions].sort(),
       optionalHosts: [...manifest.optional_host_permissions].sort(),
       incognito: manifest.incognito,
       contentScripts: manifest.content_scripts ?? [],
@@ -234,10 +236,15 @@ async function buildPermissionReport() {
     artifactVersion: version,
     expectedRequired: [
       "activeTab",
-      "identity",
+      "cookies",
+      "declarativeNetRequestWithHostAccess",
       "notifications",
       "scripting",
       "storage",
+    ],
+    expectedRequiredHosts: [
+      "https://app.increader.com/*",
+      "https://clerk.increader.com/*",
     ],
     expectedOptionalHosts: [
       "http://127.0.0.1/*",

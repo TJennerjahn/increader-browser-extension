@@ -1,11 +1,9 @@
 import {
-  createBrowserIdentityFlow,
-  createCredentialStore,
-  createDestinationStore,
-  createInstallationIdentity,
-  createPairingOperationStore,
-  createRuntimeOriginPermissions,
-} from "./browser/chrome-adapters";
+  createAccountClientFactory,
+  createAuthenticationStore,
+} from "./browser/auth-adapters";
+import { createAuthentication } from "./auth/authentication";
+import { registerAuthenticationRuntime } from "./browser/auth-runtime";
 import {
   createCaptureFailureNotifier,
   createOriginBoundAccessToken,
@@ -13,28 +11,17 @@ import {
   registerCaptureNotificationOpen,
 } from "./browser/capture-job-runtime";
 import { createIndexedDbCaptureJobStore } from "./browser/capture-job-store";
-import { registerPairingRuntime } from "./browser/pairing-runtime";
 import { registerPopupKeepAlive } from "./browser/popup-lifetime";
 import { createCaptureJob } from "./capture-job/capture-job";
 import { createCapturePackageAssembler } from "./capture-package/capture-package";
-import { createPairing } from "./pairing/pairing";
 import { createCapturePackageHttpClient } from "./protocol/capture-package-http";
-import { createDiscoveryHttpClient } from "./protocol/discovery-http";
-import { createPairingHttpClient } from "./protocol/pairing-http";
 
-const pairing = createPairing({
-  credentials: createCredentialStore(),
-  discovery: createDiscoveryHttpClient(),
-  identity: createBrowserIdentityFlow(),
-  installation: createInstallationIdentity(),
-  permissions: createRuntimeOriginPermissions(),
-  protocol: createPairingHttpClient(),
-  store: createDestinationStore(),
-});
+const authentication = createAuthentication(
+  createAuthenticationStore(),
+  createAccountClientFactory(),
+);
 registerPopupKeepAlive();
-registerPairingRuntime(pairing, {
-  operationStore: createPairingOperationStore(),
-});
+registerAuthenticationRuntime(authentication);
 const manifest = chrome.runtime.getManifest() as chrome.runtime.ManifestV3 & {
   browser_specific_settings?: unknown;
 };
@@ -47,7 +34,7 @@ const assembler = createCapturePackageAssembler({
 });
 const protocol = createCapturePackageHttpClient();
 const job = createCaptureJob({
-  accessToken: createOriginBoundAccessToken(pairing),
+  accessToken: createOriginBoundAccessToken(authentication),
   capture: (page, progress, signal) =>
     assembler.capture(page, progress, signal),
   notifyFailure: createCaptureFailureNotifier(),

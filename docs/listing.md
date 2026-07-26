@@ -2,30 +2,29 @@
 
 ## Name
 
-Increader Browser Capture
+Increader
 
 ## Summary
 
-Send the page you choose to your paired Increader instance for focused reading.
+Stop scrolling. Start reading. Send the current page to Increader Cloud or your
+self-hosted instance and continue in a focused, distraction-free reader.
 
 ## Description
 
-Increader Browser Capture is a compact, user-triggered utility for saving the
-currently open HTML page to Increader.
+Stop scrolling. Start reading. Increader sends the page you choose to your
+reading queue, where you can read without distractions and keep moving through
+what matters.
 
-Connect the extension to Increader Cloud or one self-hosted Increader instance.
-Open the utility to check whether the exact current URL is already in your
-library. Choose Import to capture the rendered top-level page and selected
-images, then continue in Increader's normal Reader Mode.
+Use Increader Cloud or connect a self-hosted instance. The page URL, rendered
+content, and selected images are sent only when you choose Import. No analytics,
+advertising, telemetry, or background browsing.
 
-Nothing is captured merely because a page is open. Browser Capture has no
-analytics, telemetry, advertising, background browsing, cookie access, or
-publisher-wide host permission. Captured content goes only to the exact
-Increader instance you paired.
+## Notes for reviewers
 
-Chrome and Firefox use the same Browser Capture behavior. Firefox 140 or newer
-is required. PDFs, local files, browser-protected pages, private/incognito
-windows, mobile browsers, and Safari are not supported in this release.
+Build: `npm ci && npm run verify` (AMO default Ubuntu/Node 24). Output:
+`dist/production/increader-browser-extension-0.1.1-firefox-upload.zip`. Public
+npm dependencies are pinned in `package-lock.json`; no third-party runtime
+libraries, obfuscation, or remote code.
 
 ## Category and language
 
@@ -44,11 +43,13 @@ windows, mobile browsers, and Safari are not supported in this release.
 ## Privacy and data-use answers
 
 - Single purpose: user-authorized capture to Increader.
-- Authentication information: one installation-specific rotating Browser
-  Capture credential is stored locally and never synchronized.
-- Website content: read only after explicit Import; sent only to the paired
+- Authentication information: normal Increader account sessions are used.
+  Passwords and issued access tokens are not persisted; a live access token may
+  be reused briefly from background memory. Clerk's client authorization and
+  session identifier stay in local extension storage.
+- Website content: read only after explicit Import; sent only to the selected
   Increader instance.
-- Browsing activity: the exact active URL is checked while the paired utility
+- Browsing activity: the exact active URL is checked while the signed-in utility
   is open; history is not collected.
 - Personal communications, financial information, health information,
   location, web history, analytics, and advertising data: not collected.
@@ -60,13 +61,14 @@ justification in [permissions.md](permissions.md).
 ## Assets
 
 Checked-in masters are under `release/assets/`. The 1280 × 800 listing
-screenshot contains the actual 0.1.0 production popup rendered by Chrome for
-Testing 150 in its disconnected state; the surrounding explanatory canvas and
-the 440 × 280 promotional image contain only release artwork. A clean release
-build emits:
+screenshot and 440 × 280 promotional image are image-generated marketing
+artwork based on the Increader identity and Browser Capture workflow. A clean
+release build copies these raster masters without programmatically composing
+new artwork and emits:
 
 - `listing/screenshot-1280x800.png`
 - `listing/chrome-promo-440x280.png`
 - 16, 32, 48, and 128 pixel runtime icons
 
-Neither asset contains User or publisher content.
+The interface shown is illustrative. Neither asset contains User or publisher
+content.

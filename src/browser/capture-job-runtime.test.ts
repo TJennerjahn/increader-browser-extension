@@ -215,7 +215,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     expect(create).toHaveBeenCalledWith(
       "browser-capture-failure-019bf66c-42ac-7c33-b57d-e2131af04fe9",
       expect.objectContaining({
-        title: "Browser Capture needs attention",
+        title: "Increader needs attention",
         message: "The previous transfer was interrupted.",
         requireInteraction: true,
       }),
@@ -230,8 +230,8 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     expect(clicked).toHaveLength(0);
   });
 
-  it("never sends a token from a replacement Pairing to the staged origin", async () => {
-    const accessToken = vi.fn().mockResolvedValue("bca_wrong_origin");
+  it("never sends a token from a replacement authentication to the staged origin", async () => {
+    const accessToken = vi.fn().mockResolvedValue("session_wrong_origin");
     const tokenForOrigin = createOriginBoundAccessToken({
       accessToken,
       currentOrigin: () =>
@@ -241,7 +241,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
     await expect(
       tokenForOrigin("https://original-reader.example"),
     ).rejects.toThrow(
-      "Reconnect to this Capture Package's Increader instance before Retry.",
+      "Sign in to this Capture Package's Increader instance before Retry.",
     );
     expect(accessToken).not.toHaveBeenCalled();
   });
@@ -365,10 +365,11 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
       expect.arrayContaining([
         [{ text: "2" }],
         [{ text: "↑" }],
-        [{ text: "✓" }],
+        [{ text: "" }],
         [{ text: "!" }],
       ]),
     );
+    expect(setBadgeText).not.toHaveBeenCalledWith({ text: "✓" });
     expect(
       sentMessages.some(
         (message) =>
