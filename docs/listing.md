@@ -64,7 +64,8 @@ Checked-in masters are under `release/assets/`. The 1280 × 800 listing
 screenshot and 440 × 280 promotional image are image-generated marketing
 artwork based on the Increader identity and Browser Capture workflow. A clean
 release build copies these raster masters without programmatically composing
-new artwork and emits:
+new artwork. `amo-icon-128.png` is the checked-in 128 × 128 PNG for the Mozilla
+Add-ons listing. A clean release build emits:
 
 - `listing/screenshot-1280x800.png`
 - `listing/chrome-promo-440x280.png`

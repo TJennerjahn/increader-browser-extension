@@ -5,6 +5,11 @@
 `f8dcf003f9ecf30a47d7dfe2185ff7eece9fadac` (SHA-256
 `ad72e83008e8605880eaaefe176100f307107535226693d8bd6df9f23d743f78`).
 
+`amo-icon-128.png` is a 128 × 128 Sharp raster of `increader-mark.svg` for
+uploading to Mozilla Add-ons. It is byte-identical to the Firefox package's
+128-pixel runtime icon. Its SHA-256 is
+`e5ef34042a2b20cd245688a12930f5f40f1ee3b5b7b73e538f68825581dd318c`.
+
 `listing-screenshot.png` and `chrome-promo.png` were created with Codex's
 built-in image generator, then resized once with Sharp to their exact store
 dimensions. They are illustrative marketing artwork and contain no publisher
