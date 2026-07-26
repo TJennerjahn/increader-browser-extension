@@ -249,7 +249,8 @@ h1 {
   background: oklch(var(--bc) / 0.14);
 }
 
-.auth-feedback {
+.auth-feedback,
+.settings-feedback {
   margin: 0;
   padding: 9px 11px;
   border: 1px solid oklch(var(--er) / 0.25);
@@ -421,21 +422,12 @@ h1 {
 
 .connection-status {
   margin: 0;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 650;
   line-height: 1.25;
-}
-
-.connection-detail {
-  min-height: 34px;
-  margin: 1px 0 2px;
-  color: oklch(var(--bc) / 0.68);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.connection-detail:empty {
-  display: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .connection-actions {

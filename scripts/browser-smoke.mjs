@@ -37,9 +37,12 @@ try {
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${extension.id}/popup.html`);
   await popup.waitForFunction(
-    () => document.querySelector("[data-status]")?.textContent === "Signed out",
+    () =>
+      document.querySelector("[data-login-view]")?.hidden === false &&
+      document.querySelector("[data-connection-card]")?.hidden === true,
   );
   const form = await popup.evaluate(() => ({
+    accountCardHidden: document.querySelector("[data-connection-card]")?.hidden,
     email: document.querySelector("#login-email")?.getAttribute("type"),
     google: document
       .querySelector("[data-google-sign-in]")
@@ -52,6 +55,7 @@ try {
     settingsHidden: document.querySelector("[data-settings-view]")?.hidden,
   }));
   if (
+    form.accountCardHidden !== true ||
     form.email !== "email" ||
     form.google !== "Continue with Google" ||
     form.loginHidden !== false ||

@@ -87,7 +87,7 @@ describe("compact Browser Capture popup", () => {
   it("signs in to a normalized self-hosted origin and remembers it", async () => {
     const authentication = signedOut();
     const signIn = vi.spyOn(authentication, "signIn").mockResolvedValue({
-      displayName: "reader@example.com",
+      displayName: "Home Reader",
       email: "reader@example.com",
       origin: "https://reader.example",
     });
@@ -106,6 +106,10 @@ describe("compact Browser Capture popup", () => {
     expect(
       root.querySelector<HTMLElement>("[data-settings-view]")?.hidden,
     ).toBe(false);
+    const accountCard = root.querySelector<HTMLElement>(
+      "[data-connection-card]",
+    );
+    expect(accountCard?.hidden).toBe(true);
     const instanceUrl = root.querySelector<HTMLInputElement>(
       "#self-hosted-origin",
     );
@@ -145,6 +149,15 @@ describe("compact Browser Capture popup", () => {
       );
       expect(save).toHaveBeenCalledWith("https://reader.example");
     });
+
+    fireEvent.click(
+      getByRole(root, "button", { name: "Open instance settings" }),
+    );
+    expect(accountCard?.hidden).toBe(false);
+    expect(accountCard?.textContent).toContain("reader@example.com");
+    expect(accountCard?.textContent).not.toContain("Home Reader");
+    expect(accountCard?.textContent).not.toContain("Signed in");
+    expect(accountCard?.querySelector("[data-detail]")).toBeNull();
   });
 
   it("shows the normal client sign-in error", async () => {

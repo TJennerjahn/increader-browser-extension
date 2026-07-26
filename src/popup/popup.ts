@@ -1,6 +1,7 @@
 import {
   CLOUD_INSTANCE_ORIGIN,
   type Authentication,
+  type AuthenticatedDestination,
 } from "../auth/authentication";
 import type {
   ActivePageInspection,
@@ -161,32 +162,34 @@ export function mountPopup(
           >
             Save
           </button>
+          <p
+            class="settings-feedback"
+            data-settings-feedback
+            role="status"
+            hidden
+          ></p>
         </form>
 
         <section
           class="connection-card card card-surface"
           data-connection-card
-          data-state="disconnected"
           aria-live="polite"
+          hidden
         >
           <div class="card-body">
             <div class="section-heading">
               <div class="section-copy">
                 <p class="eyebrow">Account</p>
-                <p class="connection-status" data-status>Signed out</p>
+                <p class="connection-status" data-account-email></p>
               </div>
               <button
                 class="disconnect-action btn btn-ghost"
                 type="button"
                 data-sign-out
-                hidden
               >
                 Sign out
               </button>
             </div>
-            <p class="connection-detail" data-detail>
-              Sign in before importing the current page.
-            </p>
           </div>
         </section>
       </section>
@@ -332,8 +335,14 @@ export function mountPopup(
     root,
     "[data-connection-card]",
   ) as HTMLElement;
-  const status = requiredElement(root, "[data-status]") as HTMLElement;
-  const detail = requiredElement(root, "[data-detail]") as HTMLElement;
+  const accountEmail = requiredElement(
+    root,
+    "[data-account-email]",
+  ) as HTMLElement;
+  const settingsFeedback = requiredElement(
+    root,
+    "[data-settings-feedback]",
+  ) as HTMLElement;
   const signOutButton = requiredElement(
     root,
     "[data-sign-out]",
@@ -374,10 +383,7 @@ export function mountPopup(
   let disposed = false;
   let configuredOrigin = CLOUD_INSTANCE_ORIGIN;
   let connectionInteractionGeneration = 0;
-  let authenticatedDestination: {
-    displayName: string;
-    origin: string;
-  } | null = null;
+  let authenticatedDestination: AuthenticatedDestination | null = null;
   let currentPage: Extract<ActivePageInspection, { kind: "supported" }> | null =
     null;
   let existingBookmarkId: number | null = null;
@@ -388,6 +394,10 @@ export function mountPopup(
   let retryRevealTimeout: ReturnType<typeof globalThis.setTimeout> | null =
     null;
   const isDisposed = (): boolean => disposed;
+  const showSettingsFeedback = (message?: string): void => {
+    settingsFeedback.textContent = message ?? "";
+    settingsFeedback.hidden = message === undefined;
+  };
   const renderBookmarkActions = (): void => {
     const hasOpenableBookmark =
       existingBookmarkId !== null && readerOrigin !== null;
@@ -449,7 +459,6 @@ export function mountPopup(
   };
 
   const showDisconnected = (message?: string): void => {
-    connectionCard.dataset.state = "disconnected";
     authenticatedDestination = null;
     currentPage = null;
     existingBookmarkId = null;
@@ -457,31 +466,31 @@ export function mountPopup(
     pageGeneration += 1;
     importActive = false;
     pageCard.hidden = true;
+    connectionCard.hidden = true;
+    accountEmail.textContent = "";
     renderConfiguredOrigin();
-    status.textContent = "Signed out";
-    detail.textContent = "Sign in before importing the current page.";
+    showSettingsFeedback();
     authFeedback.textContent = message ?? "";
     authFeedback.hidden = message === undefined;
     signInButton.disabled = false;
     googleSignInButton.disabled = false;
-    signOutButton.hidden = true;
+    signOutButton.disabled = false;
+    signOutButton.textContent = "Sign out";
     showLoginView();
   };
 
-  const showAuthenticated = (destination: {
-    displayName: string;
-    origin: string;
-  }): void => {
-    connectionCard.dataset.state = "authenticated";
+  const showAuthenticated = (destination: AuthenticatedDestination): void => {
     authenticatedDestination = destination;
     configuredOrigin = destination.origin;
+    connectionCard.hidden = false;
+    accountEmail.textContent = destination.email;
     renderConfiguredOrigin();
-    status.textContent = "Signed in";
-    detail.textContent = destination.displayName;
+    showSettingsFeedback();
     authFeedback.hidden = true;
     signInButton.disabled = false;
     googleSignInButton.disabled = false;
-    signOutButton.hidden = false;
+    signOutButton.disabled = false;
+    signOutButton.textContent = "Sign out";
     if (pageDependencies !== undefined) {
       void refreshPage();
     }
@@ -592,13 +601,10 @@ export function mountPopup(
     email: string,
     password: string,
   ): Promise<void> => {
-    connectionCard.dataset.state = "connecting";
     signInButton.disabled = true;
     googleSignInButton.disabled = true;
     authFeedback.textContent = "Checking your Increader account…";
     authFeedback.hidden = false;
-    status.textContent = "Signing in…";
-    detail.textContent = "Checking your Increader account.";
     try {
       const result = await authentication.signIn(origin, email, password);
       if (isDisposed()) return;
@@ -619,8 +625,7 @@ export function mountPopup(
         showDisconnected(message);
       } else {
         showAuthenticated(authenticatedDestination);
-        status.textContent = "Could not sign in";
-        detail.textContent = message;
+        showSettingsFeedback(message);
       }
     }
   };
@@ -664,13 +669,14 @@ export function mountPopup(
     try {
       normalized = normalizeInstanceOrigin(originInput.value);
     } catch (error) {
-      status.textContent = "Invalid connection";
-      detail.textContent =
+      showSettingsFeedback(
         error instanceof Error
           ? error.message
-          : "Enter a valid Increader instance origin.";
+          : "Enter a valid Increader instance origin.",
+      );
       return;
     }
+    showSettingsFeedback();
     const changed =
       authenticatedDestination !== null &&
       authenticatedDestination.origin !== normalized;
@@ -687,9 +693,9 @@ export function mountPopup(
       }
     })().catch((error: unknown) => {
       if (isDisposed()) return;
-      status.textContent = "Could not save instance";
-      detail.textContent =
-        error instanceof Error ? error.message : "Try saving the URL again.";
+      showSettingsFeedback(
+        error instanceof Error ? error.message : "Try saving the URL again.",
+      );
     });
   };
   const onForgotPassword = (): void => {
@@ -699,9 +705,8 @@ export function mountPopup(
   };
   const onSignOut = (): void => {
     connectionInteractionGeneration += 1;
-    connectionCard.dataset.state = "connecting";
     signOutButton.disabled = true;
-    status.textContent = "Signing out…";
+    signOutButton.textContent = "Signing out…";
     void authentication
       .signOut()
       .then(() => {
@@ -709,10 +714,9 @@ export function mountPopup(
       })
       .catch(() => {
         if (isDisposed()) return;
-        connectionCard.dataset.state = "authenticated";
-        status.textContent = "Could not sign out";
-        detail.textContent = "Try signing out again.";
+        showSettingsFeedback("Try signing out again.");
         signOutButton.disabled = false;
+        signOutButton.textContent = "Sign out";
       });
   };
   const onViewToggle = (): void => {
