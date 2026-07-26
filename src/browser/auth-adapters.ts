@@ -277,10 +277,13 @@ async function clerkRequest(
     throw clerkFailure(body, response.status);
   }
   const responseAuthorization = response.headers.get("Authorization");
-  const nextAuthorization = responseAuthorization?.startsWith("Bearer ")
-    ? responseAuthorization.slice("Bearer ".length)
-    : responseAuthorization;
-  if (nextAuthorization === null || nextAuthorization.length === 0) {
+  const nextAuthorization =
+    responseAuthorization === null || responseAuthorization.length === 0
+      ? authorization
+      : responseAuthorization.startsWith("Bearer ")
+        ? responseAuthorization.slice("Bearer ".length)
+        : responseAuthorization;
+  if (nextAuthorization === undefined || nextAuthorization.length === 0) {
     throw new Error("Increader authentication returned an invalid session.");
   }
   return { authorization: nextAuthorization, body };

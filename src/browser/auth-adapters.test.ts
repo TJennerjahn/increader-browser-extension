@@ -148,15 +148,12 @@ describe("Increader Cloud account authentication", () => {
       .fn()
       .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-one"))
       .mockResolvedValueOnce(
-        clerkResponse(
-          {
-            response: {
-              created_session_id: "sess_normal",
-              status: "complete",
-            },
+        clerkResponseWithoutAuthorization({
+          response: {
+            created_session_id: "sess_normal",
+            status: "complete",
           },
-          "client-two",
-        ),
+        }),
       )
       .mockResolvedValueOnce(
         clerkResponse({ jwt: "normal-user-token" }, "client-three"),
@@ -199,7 +196,7 @@ describe("Increader Cloud account authentication", () => {
     );
     const tokenRequest = fetcher.mock.calls[2]?.[1] as RequestInit;
     expect(new Headers(tokenRequest.headers).get("Authorization")).toBe(
-      "Bearer client-two",
+      "Bearer client-one",
     );
     expect(values.browserCaptureCloudSession).toBeUndefined();
   });
@@ -350,6 +347,15 @@ function clerkResponse(body: unknown, authorization: string): Response {
   return new Response(JSON.stringify(body), {
     headers: {
       Authorization: authorization,
+      "Content-Type": "application/json",
+    },
+    status: 200,
+  });
+}
+
+function clerkResponseWithoutAuthorization(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    headers: {
       "Content-Type": "application/json",
     },
     status: 200,
