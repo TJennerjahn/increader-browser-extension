@@ -16,6 +16,8 @@ const requiredCloudOrigins = [
   "https://app.increader.com/*",
   "https://clerk.increader.com/*",
 ];
+const firefoxOAuthCallbackOrigin =
+  "https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/*";
 const optionalOrigins = [
   "https://*/*",
   "http://localhost/*",
@@ -91,7 +93,7 @@ describe("production manifests", () => {
         required: ["authenticationInfo", "browsingActivity", "websiteContent"],
       },
       permissions: requiredPermissions,
-      hostPermissions: requiredCloudOrigins,
+      hostPermissions: [...requiredCloudOrigins, firefoxOAuthCallbackOrigin],
       optionalHostPermissions: optionalOrigins,
       incognito: "not_allowed",
     });

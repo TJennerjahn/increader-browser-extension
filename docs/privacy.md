@@ -16,7 +16,7 @@ the self-hosted Increader instance you selected. The Extension never stores
 your password.
 
 If you choose Google sign-in for Increader Cloud, authentication takes place in
-the browser's managed authentication window using Google and Increader Cloud's
+a dedicated browser authentication window using Google and Increader Cloud's
 authentication provider, Clerk. The verified callback returns directly to the
 Extension, which completes the resulting Clerk client session so it can act as
 your signed-in Increader account.

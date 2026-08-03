@@ -243,10 +243,17 @@ async function buildPermissionReport() {
       "scripting",
       "storage",
     ],
-    expectedRequiredHosts: [
-      "https://app.increader.com/*",
-      "https://clerk.increader.com/*",
-    ],
+    expectedRequiredHosts: {
+      chrome: [
+        "https://app.increader.com/*",
+        "https://clerk.increader.com/*",
+      ],
+      firefox: [
+        "https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/*",
+        "https://app.increader.com/*",
+        "https://clerk.increader.com/*",
+      ],
+    },
     expectedOptionalHosts: [
       "http://127.0.0.1/*",
       "http://[::1]/*",

@@ -32,10 +32,14 @@ const expectedPermissions = [
   "scripting",
   "storage",
 ];
-const expectedRequiredHosts = [
-  "https://app.increader.com/*",
-  "https://clerk.increader.com/*",
-];
+const expectedRequiredHosts = {
+  chrome: ["https://app.increader.com/*", "https://clerk.increader.com/*"],
+  firefox: [
+    "https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/*",
+    "https://app.increader.com/*",
+    "https://clerk.increader.com/*",
+  ],
+};
 const expectedOptionalHosts = [
   "http://127.0.0.1/*",
   "http://[::1]/*",
@@ -77,7 +81,7 @@ for (const browser of ["chrome", "firefox"]) {
   assertSameSet(
     `${browser} required host permissions`,
     builtManifest.host_permissions,
-    expectedRequiredHosts,
+    expectedRequiredHosts[browser],
   );
   assertSameSet(
     `${browser} optional host permissions`,
@@ -181,11 +185,13 @@ assertSameSet(
   permissionReport.expectedRequired,
   expectedPermissions,
 );
-assertSameSet(
-  "permission report required hosts",
-  permissionReport.expectedRequiredHosts,
-  expectedRequiredHosts,
-);
+for (const browser of ["chrome", "firefox"]) {
+  assertSameSet(
+    `permission report ${browser} required hosts`,
+    permissionReport.expectedRequiredHosts[browser],
+    expectedRequiredHosts[browser],
+  );
+}
 assertSameSet(
   "permission report optional hosts",
   permissionReport.expectedOptionalHosts,

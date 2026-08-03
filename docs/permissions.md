@@ -1,6 +1,8 @@
 # Permission Rationale
 
-The production Chrome and Firefox manifests request the same authority.
+The production Chrome and Firefox manifests request the same core authority.
+Firefox additionally receives access to its single Mozilla-owned OAuth
+callback origin so it can finish and close the Google authentication popup.
 
 ## Required permissions
 
@@ -12,8 +14,10 @@ The production Chrome and Firefox manifests request the same authority.
   not synchronized; passwords and issued access tokens are not persisted.
 - `cookies` — read the normal HttpOnly self-hosted `increader_auth` session
   cookie so background API requests can use the resulting account session.
-- `identity` — open Google in the browser's managed authentication window and
-  return the verified Clerk callback directly to the Extension.
+- `identity` — generate the stable browser-specific callback and, in Chrome,
+  run Google's managed authentication window. Firefox uses the callback with a
+  dedicated popup because its managed flow rejects Clerk's intermediate OAuth
+  callback.
 - `notifications` — show one action-required import failure notification.
 - `declarativeNetRequestWithHostAccess` — remove the browser-supplied `Origin`
   header from Clerk native-client requests made by the extension background
@@ -26,6 +30,10 @@ The production Chrome and Firefox manifests request the same authority.
 - `https://app.increader.com/*` — default Increader Cloud API and Reader Mode.
 - `https://clerk.increader.com/*` — Increader Cloud authentication and session
   refresh.
+- `https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/*`
+  (Firefox only) — observe the fixed Mozilla-owned OAuth callback in the
+  dedicated Google authentication popup so it can be closed and returned to
+  the Extension. No response body is read from this domain.
 
 ## Optional host access
 
