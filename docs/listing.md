@@ -22,7 +22,7 @@ advertising, telemetry, or background browsing.
 ## Notes for reviewers
 
 Build: `npm ci && npm run verify` (AMO default Ubuntu/Node 24). Output:
-`dist/production/increader-browser-extension-0.1.1-firefox-upload.zip`. Public
+`dist/production/increader-browser-extension-0.1.2-firefox-upload.zip`. Public
 npm dependencies are pinned in `package-lock.json`; no third-party runtime
 libraries, obfuscation, or remote code.
 
