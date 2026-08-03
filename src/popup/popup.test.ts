@@ -221,13 +221,12 @@ describe("compact Browser Capture popup", () => {
 
   it("offers Google sign-in only for Increader Cloud", async () => {
     const authentication = signedOut();
+    const googleResult = deferred<
+      Awaited<ReturnType<Authentication["signInWithGoogle"]>>
+    >();
     const signInWithGoogle = vi
       .spyOn(authentication, "signInWithGoogle")
-      .mockResolvedValue({
-        displayName: "google-reader@example.com",
-        email: "google-reader@example.com",
-        origin: CLOUD_INSTANCE_ORIGIN,
-      });
+      .mockReturnValue(googleResult.promise);
     const root = document.createElement("main");
     mountPopup(root, authentication);
     await waitForLogin(root);
@@ -238,6 +237,17 @@ describe("compact Browser Capture popup", () => {
 
     await vi.waitFor(() => {
       expect(signInWithGoogle).toHaveBeenCalledOnce();
+    });
+    expect(root.querySelector<HTMLElement>("[data-auth-feedback]")?.hidden).toBe(
+      true,
+    );
+
+    googleResult.resolve({
+      displayName: "google-reader@example.com",
+      email: "google-reader@example.com",
+      origin: CLOUD_INSTANCE_ORIGIN,
+    });
+    await vi.waitFor(() => {
       expect(root.querySelector<HTMLElement>("[data-main-view]")?.hidden).toBe(
         false,
       );

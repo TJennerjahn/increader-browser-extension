@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createAuthenticationClient } from "./auth-runtime";
+import type { Authentication } from "../auth/authentication";
+import {
+  createAuthenticationClient,
+  registerAuthenticationRuntime,
+} from "./auth-runtime";
 
 describe("popup authentication runtime", () => {
   it("requests the instance and Clerk origins for Increader Cloud", async () => {
@@ -121,6 +125,49 @@ describe("popup authentication runtime", () => {
       command: "access-token",
       retainAccountOnExpiry: true,
       target: "authentication",
+    });
+  });
+
+  it("reopens the extension popup after Google authentication completes", async () => {
+    const result = {
+      displayName: "google-reader@example.com",
+      email: "google-reader@example.com",
+      origin: "https://app.increader.com",
+    };
+    const authentication = {
+      signInWithGoogle: vi.fn().mockResolvedValue(result),
+    } as unknown as Authentication;
+    let listener:
+      | ((
+          message: unknown,
+          sender: chrome.runtime.MessageSender,
+          sendResponse: (response: unknown) => void,
+        ) => boolean)
+      | undefined;
+    const runtime = {
+      getURL: () => "chrome-extension://extension-id/",
+      onMessage: {
+        addListener: vi.fn((candidate: NonNullable<typeof listener>) => {
+          listener = candidate;
+        }),
+        removeListener: vi.fn(),
+      },
+    } as unknown as typeof chrome.runtime;
+    const openPopup = vi.fn().mockResolvedValue(undefined);
+    registerAuthenticationRuntime(authentication, runtime, { openPopup });
+    const sendResponse = vi.fn();
+
+    expect(
+      listener?.(
+        { command: "sign-in-google", target: "authentication" },
+        {},
+        sendResponse,
+      ),
+    ).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, value: result });
+      expect(openPopup).toHaveBeenCalledOnce();
     });
   });
 });

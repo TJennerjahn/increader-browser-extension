@@ -741,9 +741,8 @@ export function mountPopup(
     connectionInteractionGeneration += 1;
     signInButton.disabled = true;
     googleSignInButton.disabled = true;
-    authFeedback.textContent =
-      "Finish Google sign-in in the authentication window.";
-    authFeedback.hidden = false;
+    authFeedback.textContent = "";
+    authFeedback.hidden = true;
     void authentication
       .signInWithGoogle()
       .then((result) => {

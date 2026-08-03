@@ -27,6 +27,10 @@ interface AuthenticationResponse {
   message?: string;
 }
 
+interface PopupActionApi {
+  openPopup(): Promise<void>;
+}
+
 export function createAuthenticationClient(
   runtime: typeof chrome.runtime = chrome.runtime,
   permissions: typeof chrome.permissions = chrome.permissions,
@@ -107,7 +111,10 @@ export function createAuthenticationClient(
 export function registerAuthenticationRuntime(
   authentication: Authentication,
   runtime: typeof chrome.runtime = chrome.runtime,
+  action: PopupActionApi = chrome.action,
+  promiseAction: PopupActionApi | undefined = firefoxActionApi(runtime),
 ): () => void {
+  const popupAction = promiseAction ?? action;
   const onMessage = (
     message: unknown,
     _sender: chrome.runtime.MessageSender,
@@ -117,6 +124,9 @@ export function registerAuthenticationRuntime(
     void runCommand(authentication, message).then(
       (value) => {
         sendResponse({ ok: true, value });
+        if (message.command === "sign-in-google") {
+          void popupAction.openPopup().catch(() => undefined);
+        }
       },
       (error: unknown) => {
         sendResponse({
@@ -242,6 +252,17 @@ function firefoxPermissionsApi(
       browser?: { permissions?: PromisePermissionsApi };
     }
   ).browser?.permissions;
+}
+
+function firefoxActionApi(
+  runtime: typeof chrome.runtime,
+): PopupActionApi | undefined {
+  if (!runtime.getURL("").startsWith("moz-extension://")) return undefined;
+  return (
+    globalThis as typeof globalThis & {
+      browser?: { action?: PopupActionApi };
+    }
+  ).browser?.action;
 }
 
 function firefoxRuntimeApi(

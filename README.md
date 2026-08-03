@@ -76,7 +76,8 @@ directly to the extension through its browser-specific OAuth callback; it is not
 offered for self-hosted instances. Chrome uses its managed Web Auth Flow.
 Firefox uses a scoped popup because Firefox rejects Clerk's intermediate Google
 callback in `identity.launchWebAuthFlow`; the popup watches only the fixed
-Mozilla callback origin and closes as soon as Clerk returns.
+Mozilla callback origin and closes as soon as Clerk returns. After a successful
+Google login, the signed-in Extension popup reopens automatically.
 Self-hosted login calls `/api/auth/login`, retains Increader's normal HttpOnly
 session cookie, and sends that session token as a normal bearer token from the
 extension background process. Sign out uses the account provider's normal

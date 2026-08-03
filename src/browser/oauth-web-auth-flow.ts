@@ -96,11 +96,16 @@ function launchFirefoxPopup(
       if (settled) return;
       settled = true;
       cleanup();
-      if (authWindowId !== undefined) {
-        void api.windows.remove(authWindowId).catch(() => undefined);
-      }
-      if (returnedUrl !== null) resolve(returnedUrl);
-      else reject(toError(error));
+      const windowId = authWindowId;
+      authWindowId = undefined;
+      const closed =
+        windowId === undefined
+          ? Promise.resolve()
+          : api.windows.remove(windowId).catch(() => undefined);
+      void closed.then(() => {
+        if (returnedUrl !== null) resolve(returnedUrl);
+        else reject(toError(error));
+      });
     };
     const onUpdated: TabUpdatedListener = (tabId, changeInfo) => {
       if (
