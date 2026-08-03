@@ -71,19 +71,25 @@ Credentials, paths, queries, and fragments are rejected.
 Cloud access is included in the packaged extension. The popup asks for an
 optional host grant only when the User selects a self-hosted instance. Cloud
 login uses Clerk's browser Frontend API and the normal Increader Cloud account.
-Google sign-in continues in a normal browser tab, then the extension adopts the
-resulting Cloud session from `app.increader.com`; it is not offered for
-self-hosted instances.
+Google sign-in runs in the browser's managed authentication window and returns
+directly to the extension through its browser-specific OAuth callback; it is not
+offered for self-hosted instances.
 Self-hosted login calls `/api/auth/login`, retains Increader's normal HttpOnly
 session cookie, and sends that session token as a normal bearer token from the
 extension background process. Sign out uses the account provider's normal
 logout operation.
 
 The production Clerk instance must have Native API enabled, the packaged Chrome
-origin must be present in Clerk's `allowed_origins`, and the Cloud `/sign-in`
-and `/` URLs must be in Clerk's native SSO redirect allowlist. The checked-in
-manifest key pins the Chrome origin to
-`chrome-extension://haipjkpamjpojalajcgfeggbjhifjpnn`.
+origin must be present in Clerk's `allowed_origins`, and these exact browser
+callbacks must be in Clerk's native SSO redirect allowlist:
+
+- Chrome: `https://haipjkpamjpojalajcgfeggbjhifjpnn.chromiumapp.org/clerk`
+- Firefox: `https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/clerk`
+
+The checked-in manifest key pins the Chrome origin to
+`chrome-extension://haipjkpamjpojalajcgfeggbjhifjpnn`; Firefox derives its
+callback subdomain from the checked-in add-on ID
+`browser-capture@increader.com`.
 
 The chosen origin and account metadata are stored in `storage.local`. Cloud
 login also stores Clerk's normal client authorization and session identifier

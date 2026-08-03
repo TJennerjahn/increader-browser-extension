@@ -10,9 +10,10 @@ The production Chrome and Firefox manifests request the same authority.
 - `storage` — retain the chosen origin, account display metadata, Clerk client
   session state for cloud login, and small Capture Job state. It is local and
   not synchronized; passwords and issued access tokens are not persisted.
-- `cookies` — adopt the normal Increader Cloud client session after Google
-  sign-in and read the normal HttpOnly self-hosted `increader_auth` session
+- `cookies` — read the normal HttpOnly self-hosted `increader_auth` session
   cookie so background API requests can use the resulting account session.
+- `identity` — open Google in the browser's managed authentication window and
+  return the verified Clerk callback directly to the Extension.
 - `notifications` — show one action-required import failure notification.
 - `declarativeNetRequestWithHostAccess` — remove the browser-supplied `Origin`
   header from Clerk native-client requests made by the extension background
@@ -37,7 +38,7 @@ or image CDN. Page acquisition uses temporary active-tab authority.
 
 ## Permissions not requested
 
-Browser Capture does not request `tabs`, `identity`, `history`, `webRequest`,
+Browser Capture does not request `tabs`, `history`, `webRequest`,
 `webRequestBlocking`, `unlimitedStorage`, native messaging, downloads,
 clipboard access, or incognito/private browsing.
 

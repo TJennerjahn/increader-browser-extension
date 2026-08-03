@@ -7,13 +7,20 @@ import {
   type AuthenticationStore,
 } from "../auth/authentication";
 import { createClerkNativeTransport } from "./clerk-native-transport";
+import {
+  createOAuthWebAuthFlow,
+  type OAuthWebAuthFlow,
+} from "./oauth-web-auth-flow";
 
 const AUTHENTICATION_STORAGE_KEY = "browserCaptureAuthentication";
 const CLOUD_SESSION_STORAGE_KEY = "browserCaptureCloudSession";
 const SELF_HOSTED_COOKIE = "increader_auth";
 const CLERK_ORIGIN = "https://clerk.increader.com";
-const CLERK_CLIENT_COOKIE = "__client";
 const ACCESS_TOKEN_EXPIRY_SKEW_MS = 5_000;
+const NATIVE_OAUTH_TRANSFER_CODES = new Set([
+  "external_account_exists",
+  "external_account_not_found",
+]);
 
 export function createAuthenticationStore(
   storage: chrome.storage.StorageArea = chrome.storage.local,
@@ -51,14 +58,13 @@ export function createAccountClientFactory(
   fetcher: typeof fetch = globalThis.fetch,
   cookies: typeof chrome.cookies = chrome.cookies,
   storage: chrome.storage.StorageArea = chrome.storage.local,
-  tabs: typeof chrome.tabs = chrome.tabs,
+  webAuthFlow: OAuthWebAuthFlow = createOAuthWebAuthFlow(),
   declarativeNetRequest: typeof chrome.declarativeNetRequest = chrome.declarativeNetRequest,
 ): AccountClientFactory {
   const cloud = createCloudAccountClient(
     fetcher,
     storage,
-    cookies,
-    tabs,
+    webAuthFlow,
     createClerkNativeTransport(declarativeNetRequest),
   );
   return (origin) =>
@@ -70,8 +76,7 @@ export function createAccountClientFactory(
 export function createCloudAccountClient(
   fetcher: typeof fetch,
   storage: chrome.storage.StorageArea,
-  cookies?: typeof chrome.cookies,
-  tabs?: typeof chrome.tabs,
+  webAuthFlow?: OAuthWebAuthFlow,
   prepareNativeTransport: () => Promise<void> = () => Promise.resolve(),
 ): AccountClient {
   let tokenGeneration = 0;
@@ -151,14 +156,10 @@ export function createCloudAccountClient(
   return {
     async signInWithGoogle() {
       invalidateAccessToken();
-      if (cookies === undefined || tabs === undefined) {
+      if (webAuthFlow === undefined) {
         throw new Error("Google sign-in is unavailable in this browser.");
       }
-      const previousClient = await cookieGet(
-        cookies,
-        CLERK_ORIGIN,
-        CLERK_CLIENT_COOKIE,
-      );
+      const callbackUrl = webAuthFlow.getRedirectUrl();
       const initialized = await request("/v1/client", {
         method: "GET",
       });
@@ -166,8 +167,7 @@ export function createCloudAccountClient(
         "/v1/client/sign_ins",
         {
           body: new URLSearchParams({
-            action_complete_redirect_url: `${CLOUD_INSTANCE_ORIGIN}/`,
-            redirect_url: `${CLOUD_INSTANCE_ORIGIN}/sign-in`,
+            redirect_url: callbackUrl,
             strategy: "oauth_google",
           }),
           method: "POST",
@@ -185,24 +185,54 @@ export function createCloudAccountClient(
       if (redirectUrl === null) {
         throw new Error("Increader Cloud could not start Google sign-in.");
       }
+      const signInId = stringProperty(attempt, "id");
+      if (signInId === null) {
+        throw new Error("Increader Cloud returned an invalid Google sign-in.");
+      }
 
-      const nextClient = waitForChangedCookie(
-        cookies,
-        CLERK_ORIGIN,
-        CLERK_CLIENT_COOKIE,
-        previousClient?.value,
-      );
-      await tabCreate(tabs, redirectUrl);
-      const clientCookie = await nextClient;
-      const adopted = await request(
-        "/v1/client",
+      const returnedCallbackUrl = await webAuthFlow.launch(redirectUrl);
+      const callback = parseOAuthCallback(returnedCallbackUrl);
+      const completedSignIn = await request(
+        clerkSignInReloadPath(signInId, callback.rotatingTokenNonce),
         { method: "GET" },
-        clientCookie.value,
+        signedIn.authorization,
       );
-      const account = activeCloudAccount(adopted.body);
+      const signIn = objectProperty(completedSignIn.body, "response");
+      const firstFactor =
+        objectProperty(signIn, "first_factor_verification") ??
+        objectProperty(signIn, "verification");
+      const completion =
+        stringProperty(signIn, "status") === "complete"
+          ? completedSignIn
+          : stringProperty(firstFactor, "status") === "transferable"
+            ? await request(
+                "/v1/client/sign_ups",
+                {
+                  body: new URLSearchParams({ transfer: "true" }),
+                  method: "POST",
+                },
+                completedSignIn.authorization,
+              )
+            : null;
+      if (completion === null) {
+        throw new Error(
+          "Increader Cloud could not complete this Google sign-in.",
+        );
+      }
+      const completedAttempt = objectProperty(completion.body, "response");
+      const sessionId = stringProperty(completedAttempt, "created_session_id");
+      if (
+        stringProperty(completedAttempt, "status") !== "complete" ||
+        sessionId === null
+      ) {
+        throw new Error(
+          "Increader Cloud needs more information to finish this Google account.",
+        );
+      }
+      const account = activeCloudAccount(completion.body, sessionId);
       await saveCloudSession(storage, {
-        authorization: adopted.authorization,
-        sessionId: account.sessionId,
+        authorization: completion.authorization,
+        sessionId,
       });
       return account.email;
     },
@@ -485,14 +515,24 @@ async function selfHostedSignInFailure(response: Response): Promise<Error> {
   return new Error(message);
 }
 
-function activeCloudAccount(body: unknown): {
+function activeCloudAccount(
+  body: unknown,
+  preferredSessionId?: string,
+): {
   email: string;
   sessionId: string;
 } {
-  const client = objectProperty(body, "response");
+  const response = objectProperty(body, "response");
+  const client = objectProperty(body, "client") ?? response;
   const sessions = arrayProperty(client, "sessions");
   const activeSessionId = stringProperty(client, "last_active_session_id");
   const session =
+    sessions
+      .map(recordValue)
+      .find(
+        (candidate) =>
+          stringProperty(candidate, "id") === preferredSessionId,
+      ) ??
     sessions
       .map(recordValue)
       .find(
@@ -516,10 +556,49 @@ function activeCloudAccount(body: unknown): {
   const email = stringProperty(primaryEmail, "email_address");
   if (sessionId === null || email === null) {
     throw new Error(
-      "Finish Google sign-in in the opened tab, then open Increader again.",
+      "Increader Cloud returned an incomplete Google account session.",
     );
   }
   return { email, sessionId };
+}
+
+function parseOAuthCallback(value: string): {
+  rotatingTokenNonce?: string;
+} {
+  let callback: URL;
+  try {
+    callback = new URL(value);
+  } catch {
+    throw new Error("Increader Cloud returned an invalid Google callback.");
+  }
+  if (callback.searchParams.get("__clerk_status") === "failed") {
+    const code =
+      callback.searchParams.get("__clerk_error_code") ??
+      "oauth_callback_failed";
+    if (!NATIVE_OAUTH_TRANSFER_CODES.has(code)) {
+      throw new Error(
+        code === "oauth_access_denied"
+          ? "Google sign-in was canceled."
+          : "Increader Cloud could not complete Google sign-in.",
+      );
+    }
+  }
+  const rotatingTokenNonce = callback.searchParams.get("rotating_token_nonce");
+  return rotatingTokenNonce === null ? {} : { rotatingTokenNonce };
+}
+
+function clerkSignInReloadPath(
+  signInId: string,
+  rotatingTokenNonce?: string,
+): string {
+  const endpoint = new URL(
+    `/v1/client/sign_ins/${encodeURIComponent(signInId)}`,
+    CLERK_ORIGIN,
+  );
+  if (rotatingTokenNonce !== undefined) {
+    endpoint.searchParams.set("rotating_token_nonce", rotatingTokenNonce);
+  }
+  return `${endpoint.pathname}${endpoint.search}`;
 }
 
 function arrayProperty(value: unknown, property: string): unknown[] {
@@ -534,55 +613,6 @@ function recordValue(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-}
-
-function waitForChangedCookie(
-  cookies: typeof chrome.cookies,
-  origin: string,
-  name: string,
-  previousValue?: string,
-): Promise<chrome.cookies.Cookie> {
-  const hostname = new URL(origin).hostname;
-  return new Promise((resolve, reject) => {
-    const timeout = globalThis.setTimeout(
-      () => {
-        cookies.onChanged.removeListener(onChanged);
-        reject(
-          new Error(
-            "Google sign-in timed out. Finish it and open Increader again.",
-          ),
-        );
-      },
-      5 * 60 * 1000,
-    );
-    const onChanged = (change: chrome.cookies.CookieChangeInfo): void => {
-      const domain = change.cookie.domain.replace(/^\./, "");
-      if (
-        change.removed ||
-        change.cookie.name !== name ||
-        domain !== hostname ||
-        change.cookie.value === previousValue
-      ) {
-        return;
-      }
-      globalThis.clearTimeout(timeout);
-      cookies.onChanged.removeListener(onChanged);
-      resolve(change.cookie);
-    };
-    cookies.onChanged.addListener(onChanged);
-  });
-}
-
-function tabCreate(tabs: typeof chrome.tabs, url: string): Promise<void> {
-  const promiseTabs = firefoxTabsApi();
-  if (promiseTabs !== undefined) {
-    return promiseTabs.create({ active: true, url }).then(() => undefined);
-  }
-  return callbackVoid((done) => {
-    tabs.create({ active: true, url }, () => {
-      done();
-    });
-  });
 }
 
 async function requireSelfHostedToken(
@@ -648,10 +678,6 @@ interface PromiseCookiesApi {
   ): Promise<chrome.cookies.Cookie | null>;
 }
 
-interface PromiseTabsApi {
-  create(properties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab>;
-}
-
 interface PromiseStorageArea {
   get(key: string): Promise<Record<string, unknown>>;
   remove(key: string): Promise<void>;
@@ -664,14 +690,6 @@ function firefoxCookiesApi(): PromiseCookiesApi | undefined {
       browser?: { cookies?: PromiseCookiesApi };
     }
   ).browser?.cookies;
-}
-
-function firefoxTabsApi(): PromiseTabsApi | undefined {
-  return (
-    globalThis as typeof globalThis & {
-      browser?: { tabs?: PromiseTabsApi };
-    }
-  ).browser?.tabs;
 }
 
 function firefoxStorageArea(): PromiseStorageArea | undefined {

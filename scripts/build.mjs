@@ -238,6 +238,7 @@ async function buildPermissionReport() {
       "activeTab",
       "cookies",
       "declarativeNetRequestWithHostAccess",
+      "identity",
       "notifications",
       "scripting",
       "storage",

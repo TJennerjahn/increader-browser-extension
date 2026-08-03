@@ -1,6 +1,6 @@
 # Increader Browser Extension Privacy Policy
 
-Effective date: July 26, 2026
+Effective date: August 3, 2026
 
 This policy explains what data the Increader browser extension ("the
 Extension") handles, what it sends from your browser, and how that data is
@@ -16,9 +16,10 @@ the self-hosted Increader instance you selected. The Extension never stores
 your password.
 
 If you choose Google sign-in for Increader Cloud, authentication takes place in
-a normal Increader Cloud browser tab using Google and Increader Cloud's
-authentication provider, Clerk. The Extension then reads the resulting Clerk
-client session so it can act as your signed-in Increader account.
+the browser's managed authentication window using Google and Increader Cloud's
+authentication provider, Clerk. The verified callback returns directly to the
+Extension, which completes the resulting Clerk client session so it can act as
+your signed-in Increader account.
 
 The selected instance URL and your account email address or display name are
 stored in local, non-synchronized extension storage. For cloud accounts, the

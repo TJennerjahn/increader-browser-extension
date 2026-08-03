@@ -8,6 +8,7 @@ const requiredPermissions = [
   "scripting",
   "storage",
   "cookies",
+  "identity",
   "notifications",
   "declarativeNetRequestWithHostAccess",
 ];
@@ -41,6 +42,7 @@ describe("production manifests", () => {
       name: chrome.name,
       defaultTitle: (chrome.action as Record<string, unknown>).default_title,
       extensionId: chromeExtensionId(publicKey),
+      oauthCallback: chromeOauthCallback(publicKey),
       permissions: chrome.permissions,
       hostPermissions: chrome.host_permissions,
       optionalHostPermissions: chrome.optional_host_permissions,
@@ -49,6 +51,8 @@ describe("production manifests", () => {
       name: "Increader",
       defaultTitle: "Increader",
       extensionId: "haipjkpamjpojalajcgfeggbjhifjpnn",
+      oauthCallback:
+        "https://haipjkpamjpojalajcgfeggbjhifjpnn.chromiumapp.org/clerk",
       permissions: requiredPermissions,
       hostPermissions: requiredCloudOrigins,
       optionalHostPermissions: optionalOrigins,
@@ -67,6 +71,7 @@ describe("production manifests", () => {
       name: firefox.name,
       defaultTitle: (firefox.action as Record<string, unknown>).default_title,
       id: settings.gecko.id,
+      oauthCallback: firefoxOauthCallback(settings.gecko.id),
       minimum: settings.gecko.strict_min_version,
       android: settings.gecko_android,
       data: settings.gecko.data_collection_permissions,
@@ -78,6 +83,8 @@ describe("production manifests", () => {
       name: "Increader",
       defaultTitle: "Increader",
       id: "browser-capture@increader.com",
+      oauthCallback:
+        "https://67a4223028cae940bb8b49e4730746728ae11c28.extensions.allizom.org/clerk",
       minimum: "140.0",
       android: undefined,
       data: {
@@ -104,4 +111,14 @@ function chromeExtensionId(publicKey: string): string {
         String.fromCharCode("a".charCodeAt(0) + (byte & 0x0f)),
     )
     .join("");
+}
+
+function chromeOauthCallback(publicKey: string): string {
+  return `https://${chromeExtensionId(publicKey)}.chromiumapp.org/clerk`;
+}
+
+function firefoxOauthCallback(addOnId: unknown): string | null {
+  if (typeof addOnId !== "string") return null;
+  const subdomain = createHash("sha1").update(addOnId).digest("hex");
+  return `https://${subdomain}.extensions.allizom.org/clerk`;
 }

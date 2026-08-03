@@ -196,23 +196,8 @@ describe("Increader Cloud account authentication", () => {
     expect(values.browserCaptureCloudSession).toBeUndefined();
   });
 
-  it("hands Google OAuth to the normal Cloud flow and adopts its client session", async () => {
+  it("completes Google OAuth through the browser-managed extension callback", async () => {
     const values: Record<string, unknown> = {};
-    let cookieListener:
-      ((change: chrome.cookies.CookieChangeInfo) => void) | undefined;
-    const syncedCookie = {
-      domain: "clerk.increader.com",
-      expirationDate: 1_800_000_000,
-      hostOnly: true,
-      httpOnly: true,
-      name: "__client",
-      path: "/",
-      sameSite: "lax",
-      secure: true,
-      session: false,
-      storeId: "0",
-      value: "synced-client-jwt",
-    } satisfies chrome.cookies.Cookie;
     const storage = {
       get: (key: string) => Promise.resolve({ [key]: values[key] }),
       remove: (key: string) => {
@@ -224,35 +209,18 @@ describe("Increader Cloud account authentication", () => {
         return Promise.resolve();
       },
     };
-    const createTab = vi.fn().mockImplementation(() => {
-      queueMicrotask(() => {
-        cookieListener?.({
-          cookie: syncedCookie,
-          cause: "explicit",
-          removed: false,
-        });
-      });
-      return Promise.resolve({ id: 42 });
-    });
-    const browserCookies = {
-      get: vi.fn().mockResolvedValue(null),
-      onChanged: {
-        addListener(
-          listener: (change: chrome.cookies.CookieChangeInfo) => void,
-        ) {
-          cookieListener = listener;
-        },
-        removeListener(
-          listener: (change: chrome.cookies.CookieChangeInfo) => void,
-        ) {
-          if (cookieListener === listener) cookieListener = undefined;
-        },
-      },
-    } as unknown as typeof chrome.cookies;
+    const callbackUrl =
+      "https://haipjkpamjpojalajcgfeggbjhifjpnn.chromiumapp.org/clerk";
+    const webAuthFlow = {
+      getRedirectUrl: vi.fn().mockReturnValue(callbackUrl),
+      launch: vi
+        .fn()
+        .mockResolvedValue(
+          `${callbackUrl}?__clerk_status=verified&rotating_token_nonce=nonce-google`,
+        ),
+    };
     vi.stubGlobal("browser", {
-      cookies: browserCookies,
       storage: { local: storage },
-      tabs: { create: createTab },
     });
     const fetcher = vi
       .fn()
@@ -261,10 +229,13 @@ describe("Increader Cloud account authentication", () => {
         clerkResponse(
           {
             response: {
+              id: "signin-google",
               first_factor_verification: {
                 external_verification_redirect_url:
                   "https://accounts.google.com/o/oauth2/auth",
+                status: "unverified",
               },
+              status: "needs_first_factor",
             },
           },
           "client-two",
@@ -274,6 +245,12 @@ describe("Increader Cloud account authentication", () => {
         clerkResponse(
           {
             response: {
+              created_session_id: "sess_google",
+              first_factor_verification: { status: "verified" },
+              id: "signin-google",
+              status: "complete",
+            },
+            client: {
               last_active_session_id: "sess_google",
               sessions: [
                 {
@@ -297,21 +274,16 @@ describe("Increader Cloud account authentication", () => {
     const client = createCloudAccountClient(
       fetcher,
       {} as chrome.storage.StorageArea,
-      browserCookies,
-      {} as typeof chrome.tabs,
+      webAuthFlow,
     );
 
     await expect(client.signInWithGoogle()).resolves.toBe(
       "google-reader@example.com",
     );
-    expect(createTab).toHaveBeenCalledWith({
-      active: true,
-      url: "https://accounts.google.com/o/oauth2/auth",
-    });
-    expect(browserCookies.get).toHaveBeenCalledWith({
-      name: "__client",
-      url: "https://clerk.increader.com/",
-    });
+    expect(webAuthFlow.getRedirectUrl).toHaveBeenCalledOnce();
+    expect(webAuthFlow.launch).toHaveBeenCalledWith(
+      "https://accounts.google.com/o/oauth2/auth",
+    );
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       "https://clerk.increader.com/v1/client?_is_native=1",
@@ -325,16 +297,177 @@ describe("Increader Cloud account authentication", () => {
       "https://clerk.increader.com/v1/client/sign_ins?_is_native=1",
       expect.objectContaining({
         body: new URLSearchParams({
-          action_complete_redirect_url: "https://app.increader.com/",
-          redirect_url: "https://app.increader.com/sign-in",
+          redirect_url: callbackUrl,
           strategy: "oauth_google",
         }),
       }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      3,
+      "https://clerk.increader.com/v1/client/sign_ins/signin-google?rotating_token_nonce=nonce-google&_is_native=1",
+      expect.objectContaining({
+        credentials: "omit",
+        method: "GET",
+      }),
+    );
+    const completionRequest = fetcher.mock.calls[2]?.[1] as RequestInit;
+    expect(new Headers(completionRequest.headers).get("Authorization")).toBe(
+      "Bearer client-two",
     );
     expect(values.browserCaptureCloudSession).toEqual({
       authorization: "client-three",
       sessionId: "sess_google",
     });
+  });
+
+  it("transfers a new Google identity into a normal Cloud sign-up", async () => {
+    const values: Record<string, unknown> = {};
+    const storage = {
+      get: (key: string) => Promise.resolve({ [key]: values[key] }),
+      remove: (key: string) => {
+        Reflect.deleteProperty(values, key);
+        return Promise.resolve();
+      },
+      set: (next: Record<string, unknown>) => {
+        Object.assign(values, next);
+        return Promise.resolve();
+      },
+    };
+    const callbackUrl =
+      "https://haipjkpamjpojalajcgfeggbjhifjpnn.chromiumapp.org/clerk";
+    const webAuthFlow = {
+      getRedirectUrl: vi.fn().mockReturnValue(callbackUrl),
+      launch: vi
+        .fn()
+        .mockResolvedValue(
+          `${callbackUrl}?__clerk_status=failed&__clerk_error_code=external_account_not_found&rotating_token_nonce=nonce-new`,
+        ),
+    };
+    vi.stubGlobal("browser", { storage: { local: storage } });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-one"))
+      .mockResolvedValueOnce(
+        clerkResponse(
+          {
+            response: {
+              id: "signin-new",
+              first_factor_verification: {
+                external_verification_redirect_url:
+                  "https://accounts.google.com/o/oauth2/auth",
+                status: "unverified",
+              },
+              status: "needs_first_factor",
+            },
+          },
+          "client-two",
+        ),
+      )
+      .mockResolvedValueOnce(
+        clerkResponse(
+          {
+            response: {
+              created_session_id: null,
+              first_factor_verification: { status: "transferable" },
+              id: "signin-new",
+              status: "needs_first_factor",
+            },
+            client: {},
+          },
+          "client-three",
+        ),
+      )
+      .mockResolvedValueOnce(
+        clerkResponse(
+          {
+            response: {
+              created_session_id: "sess_new_google",
+              status: "complete",
+            },
+            client: {
+              last_active_session_id: "sess_new_google",
+              sessions: [
+                {
+                  id: "sess_new_google",
+                  user: {
+                    email_addresses: [
+                      {
+                        email_address: "new-google-reader@example.com",
+                        id: "email_new_google",
+                      },
+                    ],
+                    primary_email_address_id: "email_new_google",
+                  },
+                },
+              ],
+            },
+          },
+          "client-four",
+        ),
+      );
+    const client = createCloudAccountClient(
+      fetcher,
+      {} as chrome.storage.StorageArea,
+      webAuthFlow,
+    );
+
+    await expect(client.signInWithGoogle()).resolves.toBe(
+      "new-google-reader@example.com",
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      4,
+      "https://clerk.increader.com/v1/client/sign_ups?_is_native=1",
+      expect.objectContaining({
+        body: new URLSearchParams({ transfer: "true" }),
+        method: "POST",
+      }),
+    );
+    expect(values.browserCaptureCloudSession).toEqual({
+      authorization: "client-four",
+      sessionId: "sess_new_google",
+    });
+  });
+
+  it("stops when the browser-managed Google flow is canceled", async () => {
+    const callbackUrl =
+      "https://haipjkpamjpojalajcgfeggbjhifjpnn.chromiumapp.org/clerk";
+    const webAuthFlow = {
+      getRedirectUrl: vi.fn().mockReturnValue(callbackUrl),
+      launch: vi
+        .fn()
+        .mockResolvedValue(
+          `${callbackUrl}?__clerk_status=failed&__clerk_error_code=oauth_access_denied`,
+        ),
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(clerkResponse({ response: {} }, "client-one"))
+      .mockResolvedValueOnce(
+        clerkResponse(
+          {
+            response: {
+              id: "signin-canceled",
+              first_factor_verification: {
+                external_verification_redirect_url:
+                  "https://accounts.google.com/o/oauth2/auth",
+                status: "unverified",
+              },
+              status: "needs_first_factor",
+            },
+          },
+          "client-two",
+        ),
+      );
+    const client = createCloudAccountClient(
+      fetcher,
+      {} as chrome.storage.StorageArea,
+      webAuthFlow,
+    );
+
+    await expect(client.signInWithGoogle()).rejects.toThrow(
+      "Google sign-in was canceled.",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("reuses a live access token from background memory and refreshes near expiry", async () => {

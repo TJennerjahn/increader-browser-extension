@@ -9,6 +9,7 @@
     "scripting",
     "storage",
     "cookies",
+    "identity",
     "notifications",
     "declarativeNetRequestWithHostAccess"
   ],
