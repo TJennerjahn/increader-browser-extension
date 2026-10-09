@@ -35,8 +35,8 @@ const assembler = createCapturePackageAssembler({
 const protocol = createCapturePackageHttpClient();
 const job = createCaptureJob({
   accessToken: createOriginBoundAccessToken(authentication),
-  capture: (page, progress, signal) =>
-    assembler.capture(page, progress, signal),
+  capture: (page, progress, signal, options) =>
+    assembler.capture(page, progress, signal, options),
   notifyFailure: createCaptureFailureNotifier(),
   store: createIndexedDbCaptureJobStore(),
   transfer: (origin, accessToken, staged, signal) =>

@@ -1,5 +1,6 @@
 import type { CaptureJob, CaptureJobState } from "../capture-job/capture-job";
 import type { ActivePageInspection } from "./active-page";
+import type { CaptureImportOptions } from "../capture-package/capture-package";
 
 type SupportedPage = Extract<ActivePageInspection, { kind: "supported" }>;
 
@@ -9,6 +10,7 @@ interface RuntimeCommand {
   page?: SupportedPage;
   origin?: string;
   replaceExisting?: boolean;
+  options?: CaptureImportOptions;
 }
 
 interface RuntimeStateMessage {
@@ -36,12 +38,13 @@ export function createCaptureJobClient(
       command<CaptureJobState>(runtime, promiseRuntime, {
         command: "current",
       }),
-    startImport: (page, origin, replaceExisting = false) =>
+    startImport: (page, origin, replaceExisting = false, options) =>
       command(runtime, promiseRuntime, {
         command: "start",
         page,
         origin,
         replaceExisting,
+        ...(options === undefined ? {} : { options }),
       }),
     retry: () => command(runtime, promiseRuntime, { command: "retry" }),
     cancel: () => command(runtime, promiseRuntime, { command: "cancel" }),
@@ -68,7 +71,25 @@ export function registerCaptureJobRuntime(
   action: typeof chrome.action = chrome.action,
   promiseRuntime: PromiseRuntimeApi | undefined = firefoxRuntimeApi(runtime),
 ): () => void {
+  let activeHeartbeat: ReturnType<typeof globalThis.setInterval> | undefined;
+  const stopHeartbeat = (): void => {
+    if (activeHeartbeat === undefined) return;
+    globalThis.clearInterval(activeHeartbeat);
+    activeHeartbeat = undefined;
+  };
   const broadcast = (state: CaptureJobState): void => {
+    if (state.phase === "capturing" || state.phase === "sending") {
+      if (activeHeartbeat === undefined) {
+        // Firefox event pages (and Chrome workers) can suspend a detached
+        // fetch when the popup closes. Browser API activity keeps only this
+        // bounded, user-authorized job alive; terminal states release it.
+        activeHeartbeat = globalThis.setInterval(() => {
+          void action.getTitle({}).catch(() => undefined);
+        }, 20_000);
+      }
+    } else {
+      stopHeartbeat();
+    }
     updateAction(action, state);
     const message = {
       target: "capture-job-state",
@@ -123,13 +144,14 @@ export function registerCaptureJobRuntime(
     change: chrome.tabs.OnUpdatedInfo,
   ): void => {
     if (change.url !== undefined) {
-      void job.sourceLost(tabId);
+      void job.sourceLost(tabId, change.url);
     }
   };
   tabs.onRemoved.addListener(onRemoved);
   tabs.onUpdated.addListener(onUpdated);
 
   return () => {
+    stopHeartbeat();
     stopObserving();
     runtime.onMessage.removeListener(onMessage);
     tabs.onRemoved.removeListener(onRemoved);
@@ -202,7 +224,8 @@ async function runCommand(
       if (
         message.page === undefined ||
         message.origin === undefined ||
-        !isSupportedPage(message.page)
+        !isSupportedPage(message.page) ||
+        (message.options !== undefined && !isCaptureImportOptions(message.options))
       ) {
         throw new Error("The current page is not ready to import.");
       }
@@ -210,6 +233,7 @@ async function runCommand(
         message.page,
         message.origin,
         message.replaceExisting,
+        message.options,
       );
     case "retry":
       return job.retry();
@@ -350,4 +374,11 @@ function updateAction(
     .setBadgeBackgroundColor({ color: presentation.color })
     .catch(() => undefined);
   void action.setTitle({ title: presentation.title }).catch(() => undefined);
+}
+
+function isCaptureImportOptions(value: unknown): value is CaptureImportOptions {
+  if (value === null || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.addToQueue === "boolean" &&
+    (candidate.titleOverride === undefined || (typeof candidate.titleOverride === "string" && Array.from(candidate.titleOverride).length <= 1_024));
 }

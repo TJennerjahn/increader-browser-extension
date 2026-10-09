@@ -1,0 +1,13 @@
+{
+  "browser": "firefox",
+  "version": "140.0",
+  "scenarios": [
+    {
+      "scenario": "background-lifetime",
+      "passed": false,
+      "milliseconds": 36150,
+      "phase": "failed",
+      "message": "The previous transfer was interrupted. Retry the same Capture Package."
+    }
+  ]
+}

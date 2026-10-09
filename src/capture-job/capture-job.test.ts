@@ -10,6 +10,58 @@ import {
 } from "./capture-job";
 
 describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
+  // Lifecycle failure modes: duplicate clicks may replace an active package,
+  // harmless hash navigation may cancel capture, and stalled authentication may
+  // escape the transfer timeout and leave the popup sending indefinitely.
+  it("coalesces Import commands while the same job is capturing or sending", async () => {
+    const captured = deferred<StagedCapturePackage>();
+    const transferred = deferred<{ bookmarkId: number; created: boolean; title: string }>();
+    const capture = vi.fn(() => captured.promise);
+    const transfer = vi.fn(() => transferred.promise);
+    const job = createCaptureJob({
+      accessToken: () => Promise.resolve("token"), capture, transfer,
+      store: { load: () => Promise.resolve(null), save: () => Promise.resolve(), clear: () => Promise.resolve() },
+      notifyFailure: () => Promise.resolve(),
+    });
+    await Promise.all([job.startImport(supportedPage(), "https://reader.example"), job.startImport(supportedPage(), "https://reader.example")]);
+    expect(capture).toHaveBeenCalledOnce();
+    captured.resolve(packageFixture());
+    await vi.waitFor(() => { expect(transfer).toHaveBeenCalledOnce(); });
+    await job.startImport(supportedPage(), "https://reader.example");
+    expect(capture).toHaveBeenCalledOnce();
+    transferred.resolve({ bookmarkId: 84, created: true, title: "Article" });
+    await vi.waitFor(async () => { expect(await job.current()).toMatchObject({ phase: "completed" }); });
+  });
+
+  it("bounds authentication as part of the transfer deadline", async () => {
+    let timeout: (() => void) | undefined;
+    const job = createCaptureJob({
+      accessToken: () => new Promise<string>(() => {}),
+      capture: () => Promise.resolve(packageFixture()), transfer: vi.fn(),
+      store: { load: () => Promise.resolve(null), save: () => Promise.resolve(), clear: () => Promise.resolve() },
+      notifyFailure: () => Promise.resolve(),
+      clock: { setTimeout(task) { timeout = task; return 1; }, clearTimeout: vi.fn() },
+    });
+    await job.startImport(supportedPage(), "https://reader.example");
+    await vi.waitFor(async () => { expect(await job.current()).toMatchObject({ phase: "sending" }); });
+    expect(timeout).toBeDefined();
+    timeout?.();
+    await vi.waitFor(async () => { expect(await job.current()).toMatchObject({ phase: "failed", retryable: true }); });
+  });
+
+  it("keeps capture alive for fragment-only navigation", async () => {
+    const capture = deferred<StagedCapturePackage>();
+    const job = createCaptureJob({
+      accessToken: () => Promise.resolve("token"), capture: () => capture.promise, transfer: vi.fn(),
+      store: { load: () => Promise.resolve(null), save: () => Promise.resolve(), clear: () => Promise.resolve() },
+      notifyFailure: () => Promise.resolve(),
+    });
+    await job.startImport(supportedPage(), "https://reader.example");
+    await job.sourceLost(supportedPage().tabId, `${supportedPage().sourceUrl}#paragraph`);
+    expect(await job.current()).toMatchObject({ phase: "capturing" });
+    await job.cancel();
+  });
+
   it("continues after the popup closes and deletes staged bytes after success", async () => {
     const capture = deferred<StagedCapturePackage>();
     const records: CaptureJobRecord[] = [];
@@ -52,6 +104,7 @@ describe.each(["Chrome", "Firefox"])("%s Browser Capture Job", () => {
         phase: "completed",
         outcome: "created",
         bookmarkId: 84,
+        sourceUrl: packageFixture().manifest.sourceUrl,
       });
     });
 

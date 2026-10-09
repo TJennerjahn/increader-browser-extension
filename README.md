@@ -120,3 +120,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Firefox import reliability and background lifetime can be verified with the
+[Browser Capture qualification workflow](docs/capture-qualification.md). Its
+fixture reports cover metadata, images, explicit Retry, title/queue choices,
+and closing the popup during a slow transfer.

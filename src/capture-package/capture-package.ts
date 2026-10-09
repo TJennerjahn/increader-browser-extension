@@ -42,6 +42,11 @@ export interface UnavailableCaptureAsset {
 
 export type CaptureAssetRecord = CapturedCaptureAsset | UnavailableCaptureAsset;
 
+export interface CaptureImportOptions {
+  titleOverride?: string;
+  addToQueue: boolean;
+}
+
 export interface CapturePackageManifest {
   captureId: string;
   capturedAt: string;
@@ -49,6 +54,8 @@ export interface CapturePackageManifest {
   baseUrl: string;
   canonicalUrl?: string;
   title?: string;
+  titleOverride?: string;
+  addToQueue?: boolean;
   language?: string;
   document: components["schemas"]["BrowserCaptureDocumentDigest"];
   producer: components["schemas"]["BrowserCaptureProducer"];
@@ -72,6 +79,7 @@ export interface CapturePackageAssembler {
     page: Extract<ActivePageInspection, { kind: "supported" }>,
     onProgress?: (progress: CapturePackageProgress) => void,
     signal?: AbortSignal,
+    options?: CaptureImportOptions,
   ): Promise<StagedCapturePackage>;
 }
 
@@ -133,11 +141,12 @@ export function createCapturePackageAssembler({
   producer,
 }: CapturePackageAssemblerDependencies): CapturePackageAssembler {
   return {
-    async capture(page, onProgress, signal) {
+    async capture(page, onProgress, signal, options) {
+      throwIfCaptureCancelled(signal);
       const injection = {
         func: captureTopLevelDocument,
         target: { tabId: page.tabId },
-        world: "MAIN",
+        world: "ISOLATED",
       } satisfies chrome.scripting.ScriptInjection<[], unknown>;
       const results =
         promiseScripting === undefined
@@ -149,6 +158,11 @@ export function createCapturePackageAssembler({
           : await promiseScripting.executeScript(injection);
       const captured = results.find((result) => result.frameId === 0)?.result;
       throwIfCaptureCancelled(signal);
+      if (captured !== null && typeof captured === "object" && "captureError" in captured) {
+        const code = (captured).captureError;
+        if (code === "conversation_streaming") throw captureFailure("Wait for ChatGPT to finish responding, then import again.");
+        if (code === "conversation_empty") throw captureFailure("Open a ChatGPT conversation with messages, then import again.");
+      }
       if (!isCapturedTopLevelDocument(captured)) {
         throw captureFailure("The active page could not be captured.");
       }
@@ -158,7 +172,18 @@ export function createCapturePackageAssembler({
       if (captured.contentType !== "text/html") {
         throw captureFailure("Only HTML pages can be imported.");
       }
+      // Publisher metadata is optional: malformed hints must not discard readable text.
+      if (captured.title !== undefined) captured.title = Array.from(captured.title).slice(0, TITLE_CODE_POINTS_LIMIT).join("");
+      if (captured.language !== undefined) {
+        const language = captured.language.trim().replaceAll("_", "-");
+        if (/^[A-Za-z0-9-]{1,35}$/.test(language)) captured.language = language;
+        else delete captured.language;
+      }
       validateCapturedDocument(captured);
+      const titleOverride = options?.titleOverride?.trim();
+      if (titleOverride !== undefined && Array.from(titleOverride).length > TITLE_CODE_POINTS_LIMIT) {
+        throw captureFailure("Bookmark titles can contain at most 1,024 characters.");
+      }
 
       const captureId = randomUuid();
       if (!UUID_PATTERN.test(captureId)) {
@@ -271,6 +296,8 @@ export function createCapturePackageAssembler({
       const manifest: CapturePackageManifest = {
         captureId,
         capturedAt: now().toISOString(),
+        ...(options === undefined ? {} : { addToQueue: options.addToQueue }),
+        ...(titleOverride ? { titleOverride } : {}),
         sourceUrl: captured.sourceUrl,
         baseUrl: captured.baseUrl,
         ...(captured.canonicalUrl === undefined
@@ -330,15 +357,15 @@ function throwIfCaptureCancelled(signal: AbortSignal | undefined): void {
  * This function is serialized by chrome.scripting, so every dependency used in
  * page context intentionally lives inside its body.
  */
-async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
+async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument | { captureError: "conversation_streaming" | "conversation_empty" }> {
   const marker = "increader:browser-capture-asset/";
   const assetBytesLimit = 8 * 1024 * 1024;
   const assetRecordsLimit = 1_000;
   const capturedAssetsLimit = 60;
   const aggregateAssetBytesLimit = 50 * 1024 * 1024;
-  const assetTimeoutMilliseconds = 15_000;
+  const assetTimeoutMilliseconds = 1_500;
   const assetReadConcurrency = 4;
-  const captureDeadlineAt = Date.now() + 90_000;
+  const captureDeadlineAt = Date.now() + 5_000;
   const binaryChunkBytes = 192 * 1024;
   const lazyUrlAttributes = [
     "data-src",
@@ -375,6 +402,7 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
           return null;
         }
       }
+      if (resolved.protocol === "http:" || resolved.protocol === "https:") resolved.hash = "";
       return resolved.toString();
     } catch {
       return null;
@@ -583,6 +611,54 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
   const liveImages = Array.from(document.querySelectorAll("img"));
   const clonedImages = Array.from(clone.querySelectorAll("img"));
+  // Keep only the displayed conversation. This runs before style removal so
+  // inactive branches can be recognized, and moves the existing clone nodes so
+  // image indexes still refer to their original live counterparts.
+  if (source.hostname === "chatgpt.com" || source.hostname === "chat.openai.com") {
+    const visibility = new WeakMap<Element, boolean>();
+    const isDisplayed = (element: Element): boolean => {
+      const ancestors: Element[] = [];
+      let displayed = true;
+      for (let current: Element | null = element; current !== null; current = current.parentElement) {
+        const cached = visibility.get(current);
+        if (cached !== undefined) { displayed = cached; break; }
+        ancestors.push(current);
+        if (current.hasAttribute("hidden") || current.hasAttribute("inert") || current.getAttribute("aria-hidden") === "true") {
+          displayed = false;
+          break;
+        }
+        const style = getComputedStyle(current);
+        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") {
+          displayed = false;
+          break;
+        }
+      }
+      for (const ancestor of ancestors) visibility.set(ancestor, displayed);
+      return displayed;
+    };
+    if (Array.from(document.querySelectorAll('[data-testid="stop-button"], [data-is-streaming="true"], .result-streaming')).some(isDisplayed)) {
+      return { captureError: "conversation_streaming" };
+    }
+    const selector = '[data-message-author-role="user"], [data-message-author-role="assistant"]';
+    const liveMessages = Array.from(document.querySelectorAll(selector));
+    const clonedMessages = Array.from(clone.querySelectorAll(selector));
+    const conversation = document.createElement("main");
+    for (const [index, message] of liveMessages.entries()) {
+      const clonedMessage = clonedMessages[index];
+      if (clonedMessage === undefined || !isDisplayed(message) || message.parentElement?.closest(selector) !== null) continue;
+      const liveChildren = Array.from(message.querySelectorAll("*"));
+      const clonedChildren = Array.from(clonedMessage.querySelectorAll("*"));
+      for (const [childIndex, child] of liveChildren.entries()) {
+        // KaTeX's hidden MathML contains the source TeX used by the server.
+        if (child.closest(".katex") === null && !isDisplayed(child)) clonedChildren[childIndex]?.remove();
+      }
+      conversation.appendChild(clonedMessage);
+    }
+    if (conversation.childElementCount === 0) {
+      return { captureError: "conversation_empty" };
+    }
+    clone.querySelector("body")?.replaceChildren(conversation);
+  }
   const domElements = clone.querySelectorAll("*").length + 1;
   clone
     .querySelectorAll(
@@ -741,7 +817,7 @@ async function captureTopLevelDocument(): Promise<CapturedTopLevelDocument> {
 
   const serializedDoctype =
     document.doctype === null
-      ? ""
+      ? "<!DOCTYPE html>"
       : new XMLSerializer().serializeToString(document.doctype);
   const canonicalHref = document.querySelector<HTMLLinkElement>(
     'link[rel~="canonical"]',

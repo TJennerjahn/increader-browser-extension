@@ -1,0 +1,12 @@
+{
+  "browser": "firefox",
+  "version": "140.0",
+  "scenarios": [
+    {
+      "scenario": "background-lifetime",
+      "passed": true,
+      "milliseconds": 36130,
+      "phase": "completed"
+    }
+  ]
+}

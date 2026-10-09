@@ -360,7 +360,7 @@ describe.each(["Chrome", "Firefox"])("%s Capture Job popup runtime", () => {
 
     expect(sourceLost).toHaveBeenCalledTimes(2);
     expect(sourceLost).toHaveBeenNthCalledWith(1, 41);
-    expect(sourceLost).toHaveBeenNthCalledWith(2, 42);
+    expect(sourceLost).toHaveBeenNthCalledWith(2, 42, "https://publisher.example/next");
     expect(setBadgeText.mock.calls).toEqual(
       expect.arrayContaining([
         [{ text: "2" }],

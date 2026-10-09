@@ -131,7 +131,7 @@ async function isCaptureJobRecord(
       Number.isSafeInteger(value.page.tabId) &&
       (value.page.tabId as number) >= 0 &&
       isSafeUrl(value.page.sourceUrl) &&
-      isBoundedString(value.page.title, 4_096)
+      isBoundedCodePointString(value.page.title, 1_024)
     );
   }
   if (value.phase === "capture-failed") {
@@ -144,7 +144,8 @@ async function isCaptureJobRecord(
       Number.isSafeInteger(value.bookmarkId) &&
       (value.bookmarkId as number) > 0 &&
       isBoundedString(value.title, 4_096) &&
-      isOrigin(value.origin)
+      isOrigin(value.origin) &&
+      (value.sourceUrl === undefined || isSafeUrl(value.sourceUrl))
     );
   }
   if (
@@ -212,6 +213,9 @@ async function isStagedPackage(
       !isSafeUrl(manifest.canonicalUrl)) ||
     (manifest.title !== undefined &&
       !isBoundedCodePointString(manifest.title, 1_024)) ||
+    (manifest.titleOverride !== undefined &&
+      !isBoundedCodePointString(manifest.titleOverride, 1_024)) ||
+    (manifest.addToQueue !== undefined && typeof manifest.addToQueue !== "boolean") ||
     (manifest.language !== undefined &&
       (typeof manifest.language !== "string" ||
         !/^[A-Za-z0-9-]{1,35}$/.test(manifest.language))) ||
@@ -343,32 +347,67 @@ function markerAttributeIds(html: string): string[] | null {
     if (!tag.includes(marker)) continue;
     if (tag.startsWith("<!--")) continue;
     if (!/^<img(?:\s|\/?>)/i.test(tag)) return null;
-    const sourceAttributes = [
-      ...tag.matchAll(/\ssrc\s*=\s*(["'])(.*?)\1/gi),
-    ];
-    const markerSources = sourceAttributes.filter((match) =>
-      match[2]?.includes(marker),
-    );
-    if (sourceAttributes.length !== 1 || markerSources.length !== 1) {
-      return null;
-    }
-    const source = markerSources[0]?.[2];
-    if (
-      source === undefined ||
-      !new RegExp(`^${marker}asset-[0-9]{4}$`).test(source)
-    ) {
-      return null;
-    }
-    const withoutMarkerSource = tag.replace(markerSources[0]?.[0] ?? "", "");
-    if (withoutMarkerSource.includes(marker)) return null;
+    const attributes = scanImageAttributes(tag);
+    if (attributes === null) return null;
+    const sources = attributes.filter((attribute) => attribute.name === "src");
+    if (sources.length !== 1) return null;
+    const source = sources[0]?.value;
+    if (source === undefined || !new RegExp(`^${marker}asset-[0-9]{4}$`).test(source)) return null;
+    if (attributes.some((attribute) => attribute.name !== "src" && attribute.value.includes(marker))) return null;
     ids.push(source.slice(marker.length));
   }
   return ids;
 }
 
+// The worker has no DOMParser. Read complete quoted values instead of matching
+// `src=` inside alt/title text, while still rejecting duplicate source attributes.
+function scanImageAttributes(tag: string): Array<{ name: string; value: string }> | null {
+  const attributes: Array<{ name: string; value: string }> = [];
+  let index = 4; // <img
+  const skipWhitespace = (): void => {
+    while (index < tag.length && /\s/.test(tag[index] ?? "")) index += 1;
+  };
+  while (index < tag.length) {
+    skipWhitespace();
+    if (tag[index] === ">" || tag.slice(index) === "/>") break;
+    const nameStart = index;
+    while (index < tag.length && !/[\s=/>]/.test(tag[index] ?? "")) index += 1;
+    if (index === nameStart) return null;
+    const name = tag.slice(nameStart, index).toLowerCase();
+    skipWhitespace();
+    let value = "";
+    if (tag[index] === "=") {
+      index += 1;
+      skipWhitespace();
+      const quote = tag[index];
+      if (quote === '"' || quote === "'") {
+        index += 1;
+        const valueStart = index;
+        const end = tag.indexOf(quote, index);
+        if (end < 0) return null;
+        value = tag.slice(valueStart, end);
+        index = end + 1;
+      } else {
+        const valueStart = index;
+        while (index < tag.length && !/[\s>]/.test(tag[index] ?? "")) index += 1;
+        value = tag.slice(valueStart, index);
+      }
+    }
+    attributes.push({ name, value });
+  }
+  return attributes;
+}
+
 function scanHtmlTags(html: string): string[] | null {
   const tags: string[] = [];
   for (let start = html.indexOf("<"); start >= 0; ) {
+    // Quotes and angle brackets inside comments are text, not HTML attributes.
+    if (html.startsWith("<!--", start)) {
+      const end = html.indexOf("-->", start + 4);
+      if (end < 0) return null;
+      start = html.indexOf("<", end + 3);
+      continue;
+    }
     let quote: '"' | "'" | null = null;
     let end = start + 1;
     for (; end < html.length; end += 1) {
@@ -382,7 +421,19 @@ function scanHtmlTags(html: string): string[] | null {
       }
     }
     if (end >= html.length) return null;
-    tags.push(html.slice(start, end + 1));
+    const tag = html.slice(start, end + 1);
+    tags.push(tag);
+    const rawText = /^<(script|style|xmp|iframe|noembed|noframes|noscript|textarea|title|plaintext)(?:\s|>)/i.exec(tag)?.[1];
+    if (rawText?.toLowerCase() === "plaintext") break;
+    if (rawText !== undefined) {
+      // In raw-text/RCDATA elements, '<' and quotes are content until the
+      // matching end tag; treating them as markup rejects valid snapshots.
+      const closing = new RegExp(`</${rawText}\\s*>`, "gi");
+      closing.lastIndex = end + 1;
+      const match = closing.exec(html);
+      if (match === null) return null;
+      end = match.index + match[0].length - 1;
+    }
     start = html.indexOf("<", end + 1);
   }
   return tags;

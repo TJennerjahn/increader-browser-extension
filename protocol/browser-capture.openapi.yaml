@@ -154,6 +154,14 @@ components:
         title:
           type: string
           maxLength: 1024
+        titleOverride:
+          type: string
+          maxLength: 1024
+          description: User-edited Bookmark title, trimmed before use. Blank or absent uses the extracted title. Does not rename an existing Bookmark.
+        addToQueue:
+          type: boolean
+          default: true
+          description: Add the imported Bookmark to the Reading Queue. False leaves existing queue membership unchanged.
         language:
           type: string
           maxLength: 35

@@ -17,3 +17,8 @@ There are no test quarantines. A failed required gate blocks release. The only
 lint allowlist is web-ext's Android-minimum warning caused by Firefox 140
 desktop data-consent support predating Firefox 142 Android support; every other
 lint warning remains blocking.
+
+The Firefox capture workflow and closed-popup background lifetime check are
+specified in [Browser Capture qualification](capture-qualification.md), including
+repeatable commands and retained before/after evidence. Set `FIREFOX_BINARY` when
+the desired Firefox executable is not on the system path.

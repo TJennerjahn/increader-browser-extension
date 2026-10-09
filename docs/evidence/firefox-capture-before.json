@@ -1,0 +1,59 @@
+{
+  "browser": "firefox",
+  "version": "140.0",
+  "scenarios": [
+    {
+      "scenario": "ordinary",
+      "passed": true,
+      "milliseconds": 51,
+      "phase": "completed"
+    },
+    {
+      "scenario": "invalid-language",
+      "passed": false,
+      "milliseconds": 4,
+      "phase": "failed",
+      "message": "The page language is invalid."
+    },
+    {
+      "scenario": "long-title",
+      "passed": false,
+      "milliseconds": 6,
+      "phase": "failed",
+      "message": "The page title is too long to import."
+    },
+    {
+      "scenario": "untitled",
+      "passed": true,
+      "milliseconds": 8,
+      "phase": "completed"
+    },
+    {
+      "scenario": "fragment-image",
+      "passed": false,
+      "milliseconds": 7,
+      "phase": "failed",
+      "message": "The active page could not be captured."
+    },
+    {
+      "scenario": "comment",
+      "passed": false,
+      "milliseconds": 5,
+      "phase": "failed",
+      "message": "The active page could not be captured."
+    },
+    {
+      "scenario": "overridden-page-api",
+      "passed": false,
+      "milliseconds": 8,
+      "phase": "failed",
+      "message": "The active page could not be captured."
+    },
+    {
+      "scenario": "slow-images",
+      "passed": false,
+      "milliseconds": 32025,
+      "phase": "completed"
+    }
+  ]
+}

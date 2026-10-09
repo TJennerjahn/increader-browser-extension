@@ -66,6 +66,13 @@ export interface components {
             /** Format: uri */
             canonicalUrl?: string;
             title?: string;
+            /** @description User-edited Bookmark title, trimmed before use. Blank or absent uses the extracted title. Does not rename an existing Bookmark. */
+            titleOverride?: string;
+            /**
+             * @description Add the imported Bookmark to the Reading Queue. False leaves existing queue membership unchanged.
+             * @default true
+             */
+            addToQueue: boolean;
             language?: string;
             document: components["schemas"]["BrowserCaptureDocumentDigest"];
             producer: components["schemas"]["BrowserCaptureProducer"];

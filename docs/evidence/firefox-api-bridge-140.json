@@ -1,0 +1,12 @@
+{
+  "browser": "firefox",
+  "version": "140.0",
+  "scenarios": [
+    {
+      "scenario": "chatgpt",
+      "passed": true,
+      "milliseconds": 10059,
+      "phase": "completed"
+    }
+  ]
+}

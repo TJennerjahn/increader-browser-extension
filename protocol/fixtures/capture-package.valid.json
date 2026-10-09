@@ -19,5 +19,7 @@
   },
   "documentHtml": "<!DOCTYPE html><html><body><article>Captured article</article></body></html>",
   "createdStatus": 201,
-  "existingStatus": 200
+  "existingStatus": 200,
+  "titleOverride": "My captured article",
+  "addToQueue": false
 }
