@@ -11,7 +11,7 @@
     "build": "node scripts/build.mjs --mode production",
     "build:dev": "node scripts/build.mjs --mode development",
     "browser:test": "node scripts/browser-smoke.mjs",
-    "browser:test:matrix": "npm run browser:test",
+    "browser:test:matrix": "npm run browser:test && npm run browser:test:capture",
     "build:reproducible": "node scripts/check-reproducible.mjs",
     "dependency:audit": "npm audit --omit=dev --audit-level=high && node scripts/license-audit.mjs",
     "lint": "eslint . --max-warnings=0",
@@ -24,7 +24,8 @@
     "signing:check": "node scripts/check-signing-boundary.mjs",
     "inspect": "node scripts/inspect-build.mjs",
     "web-ext:lint": "node scripts/web-ext-lint.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run protocol:check && npm run build:dev && npm run release:static"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run protocol:check && npm run build:dev && npm run release:static",
+    "browser:test:capture": "node scripts/capture-qualification.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -443,7 +443,7 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
     expect(cancel).toHaveBeenCalledOnce();
   });
 
-  it("stages a valid partial package when the 90-second capture deadline expires", async () => {
+  it("stages a valid partial package when the five-second image budget expires", async () => {
     vi.useFakeTimers();
     try {
       const imageCount = 28;
@@ -483,7 +483,7 @@ describe.each(["Chrome", "Firefox"])("%s text-only Capture Package", () => {
         title: "Rendered title",
       });
 
-      await vi.advanceTimersByTimeAsync(90_001);
+      await vi.advanceTimersByTimeAsync(5_001);
       vi.useRealTimers();
       const staged = await Promise.race([
         capture,

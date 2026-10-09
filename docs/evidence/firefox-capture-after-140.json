@@ -1,0 +1,90 @@
+{
+  "browser": "firefox",
+  "version": "140.0",
+  "scenarios": [
+    {
+      "scenario": "ordinary",
+      "passed": true,
+      "milliseconds": 38,
+      "phase": "completed"
+    },
+    {
+      "scenario": "missing-doctype",
+      "passed": true,
+      "milliseconds": 9,
+      "phase": "completed"
+    },
+    {
+      "scenario": "invalid-language",
+      "passed": true,
+      "milliseconds": 7,
+      "phase": "completed"
+    },
+    {
+      "scenario": "long-title",
+      "passed": true,
+      "milliseconds": 12,
+      "phase": "completed"
+    },
+    {
+      "scenario": "untitled",
+      "passed": true,
+      "milliseconds": 6,
+      "phase": "completed"
+    },
+    {
+      "scenario": "fragment-image",
+      "passed": true,
+      "milliseconds": 16,
+      "phase": "completed"
+    },
+    {
+      "scenario": "alt-attribute",
+      "passed": true,
+      "milliseconds": 19,
+      "phase": "completed"
+    },
+    {
+      "scenario": "comment",
+      "passed": true,
+      "milliseconds": 21,
+      "phase": "completed"
+    },
+    {
+      "scenario": "raw-text",
+      "passed": true,
+      "milliseconds": 17,
+      "phase": "completed"
+    },
+    {
+      "scenario": "overridden-page-api",
+      "passed": true,
+      "milliseconds": 5,
+      "phase": "completed"
+    },
+    {
+      "scenario": "slow-images",
+      "passed": true,
+      "milliseconds": 5020,
+      "phase": "completed"
+    },
+    {
+      "scenario": "custom-options",
+      "passed": true,
+      "milliseconds": 6,
+      "phase": "completed"
+    },
+    {
+      "scenario": "retry-options",
+      "passed": true,
+      "milliseconds": 8,
+      "phase": "completed"
+    },
+    {
+      "scenario": "reconnect-options",
+      "passed": true,
+      "milliseconds": 9,
+      "phase": "completed"
+    }
+  ]
+}

@@ -1,10 +1,12 @@
 /* eslint-disable no-undef -- The smoke test evaluates the extension page. */
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
 import puppeteer from "puppeteer";
+import assert from "node:assert/strict";
+import { build } from "esbuild";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const extensionRoot = path.join(repositoryRoot, "dist", "production", "chrome");
@@ -99,6 +101,7 @@ try {
   if (settings.loginHidden !== true || settings.settingsHidden !== false) {
     throw new Error("The cog did not open the separate instance screen.");
   }
+  await qualifyImportOptions(browser);
   process.stdout.write(
     `Loaded ${manifest.name} ${manifest.version} (${extension.id})\n`,
   );
@@ -114,4 +117,129 @@ async function waitFor(read, timeout = 15_000) {
     await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
   }
   throw new Error(`Browser smoke condition timed out after ${timeout} ms`);
+}
+
+// The packaged extension is checked above. Here the production popup is mounted
+// against delayed browser/HTTP boundaries to exercise draft and keyboard behavior.
+async function qualifyImportOptions(browser) {
+  const bundle = await build({
+    entryPoints: [
+      path.join(repositoryRoot, "release/browser/popup-qualification.ts"),
+    ],
+    bundle: true,
+    format: "iife",
+    target: "chrome140",
+    write: false,
+  });
+  const reportDirectory = path.join(repositoryRoot, "dist", "qualification");
+  await mkdir(reportDirectory, { recursive: true });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 384, height: 620 });
+  await page.emulateMediaFeatures([
+    { name: "prefers-reduced-motion", value: "reduce" },
+  ]);
+  await page.setContent(
+    '<!doctype html><html lang="en"><head><title>Import options qualification</title></head><body><main></main></body></html>',
+  );
+  await page.addStyleTag({
+    content: await readFile(
+      path.join(repositoryRoot, "src/popup/popup.css"),
+      "utf8",
+    ),
+  });
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#bookmark-title")?.value === "A readable article",
+  );
+  assert.equal(
+    await page.$eval("#add-to-queue", (input) => input.checked),
+    true,
+  );
+  await page.focus("#bookmark-title");
+  await page.keyboard.down("Control");
+  await page.keyboard.press("KeyA");
+  await page.keyboard.up("Control");
+  await page.keyboard.type("My reading title");
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.id),
+    "add-to-queue",
+  );
+  await page.keyboard.press("Space");
+  await page.evaluate(() => {
+    globalThis.popupQualification.refresh();
+    globalThis.popupQualification.finishLookup();
+  });
+  await page.waitForFunction(
+    () => document.querySelector("[data-import]")?.disabled === false,
+  );
+  const readOptions = () =>
+    page.evaluate(() => ({
+      title: document.querySelector("#bookmark-title")?.value,
+      queue: document.querySelector("#add-to-queue")?.checked,
+      titleLabel: document
+        .querySelector('label[for="bookmark-title"]')
+        ?.textContent.trim(),
+      queueLabel: document
+        .querySelector('label[for="add-to-queue"]')
+        ?.textContent.trim(),
+      horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
+    }));
+  const edited = await readOptions();
+  assert.deepEqual(edited, {
+    title: "My reading title",
+    queue: false,
+    titleLabel: "Bookmark title",
+    queueLabel: "Add to reading queue",
+    horizontalOverflow: false,
+  });
+  await page.screenshot({
+    path: path.join(reportDirectory, "popup-options.png"),
+    fullPage: true,
+  });
+  await page.emulateMediaFeatures([
+    { name: "prefers-color-scheme", value: "light" },
+    { name: "prefers-reduced-motion", value: "reduce" },
+  ]);
+  await page.screenshot({
+    path: path.join(reportDirectory, "popup-options-light.png"),
+    fullPage: true,
+  });
+  await page.setViewport({ width: 320, height: 620 });
+  await page.waitForFunction(
+    () => document.documentElement.scrollWidth <= innerWidth,
+  );
+  assert.equal((await readOptions()).horizontalOverflow, false);
+  await page.screenshot({
+    path: path.join(reportDirectory, "popup-options-narrow.png"),
+    fullPage: true,
+  });
+  await page.click("[data-import]");
+  await page.waitForFunction(
+    () => globalThis.popupQualification.imports.length === 1,
+  );
+  const submitted = await page.evaluate(() => ({
+    options: globalThis.popupQualification.imports[0][3],
+    titleDisabled: document.querySelector("#bookmark-title")?.disabled,
+    queueDisabled: document.querySelector("#add-to-queue")?.disabled,
+  }));
+  assert.deepEqual(submitted, {
+    options: { titleOverride: "My reading title", addToQueue: false },
+    titleDisabled: true,
+    queueDisabled: true,
+  });
+  await page.evaluate(() => globalThis.popupQualification.complete());
+  await page.waitForFunction(
+    () => document.querySelector("[data-open-reader]")?.hidden === false,
+  );
+  assert.equal(
+    await page.$eval("[data-import-options]", (element) => element.hidden),
+    true,
+  );
+  await writeFile(
+    path.join(reportDirectory, "popup-options.json"),
+    JSON.stringify({ edited, submitted, completed: true }, null, 2) + "\n",
+  );
+  await page.close();
 }

@@ -2,6 +2,7 @@ import type { ActivePageInspection } from "../browser/active-page";
 import {
   CapturePackageError,
   type StagedCapturePackage,
+  type CaptureImportOptions,
 } from "../capture-package/capture-package";
 import {
   CaptureTransferError,
@@ -26,6 +27,7 @@ export type CaptureJobState =
       bookmarkId: number;
       title: string;
       origin: string;
+      sourceUrl?: string;
     }
   | {
       phase: "failed";
@@ -81,11 +83,12 @@ export interface CaptureJob {
     page: SupportedPage,
     origin: string,
     replaceExisting?: boolean,
+    options?: CaptureImportOptions,
   ) => Promise<{ status: "started" | "replacement-required" }>;
   retry: () => Promise<void>;
   cancel: () => Promise<void>;
   discard: () => Promise<void>;
-  sourceLost: (tabId: number) => Promise<void>;
+  sourceLost: (tabId: number, nextUrl?: string) => Promise<void>;
   observe: (listener: (state: CaptureJobState) => void) => () => void;
 }
 
@@ -95,6 +98,7 @@ interface CaptureJobDependencies {
     page: SupportedPage,
     progress: (value: CaptureProgress) => void,
     signal: AbortSignal,
+    options?: CaptureImportOptions,
   ) => Promise<StagedCapturePackage>;
   transfer: (
     origin: string,
@@ -263,7 +267,6 @@ export function createCaptureJob({
     const transferAbort = new AbortController();
     let timeoutHandle: unknown;
     try {
-      const token = await accessToken(origin);
       const timeout = new Promise<never>((_resolve, reject) => {
         timeoutHandle = clock.setTimeout(() => {
           transferAbort.abort();
@@ -275,7 +278,11 @@ export function createCaptureJob({
         }, 120_000);
       });
       const result = await Promise.race([
-        transfer(origin, token, staged, transferAbort.signal),
+        (async () => {
+          const token = await accessToken(origin);
+          transferAbort.signal.throwIfAborted();
+          return transfer(origin, token, staged, transferAbort.signal);
+        })(),
         timeout,
       ]);
       const completed: Extract<CaptureJobState, { phase: "completed" }> = {
@@ -285,6 +292,7 @@ export function createCaptureJob({
         bookmarkId: result.bookmarkId,
         title: result.title,
         origin,
+        sourceUrl: staged.manifest.sourceUrl,
       };
       await persist(completed);
       publish(completed);
@@ -357,9 +365,12 @@ export function createCaptureJob({
       return state;
     },
 
-    startImport(page, origin, replaceExisting = false) {
+    startImport(page, origin, replaceExisting = false, options) {
       return runExclusive(async () => {
         await ensureRestored();
+        // One durable job owns the installation; late outcomes must never
+        // overwrite another Import started while capture or transfer is active.
+        if (state.phase === "capturing" || state.phase === "sending") return { status: "started" };
         if (
           state.phase === "failed" &&
           state.captureId !== null &&
@@ -370,6 +381,7 @@ export function createCaptureJob({
         if (state.phase === "failed" && state.captureId !== null) {
           await persist(null);
         }
+        page = { ...page, title: Array.from(page.title).slice(0, 1_024).join("") };
         const generation = ++captureGeneration;
         const attemptId = randomUuid();
         activeAttemptId = attemptId;
@@ -388,6 +400,7 @@ export function createCaptureJob({
             publish({ phase: "capturing", page, ...progress });
           },
           captureAbort.signal,
+          options,
         )
           .then(async (staged) => {
             if (generation !== captureGeneration) return;
@@ -457,10 +470,19 @@ export function createCaptureJob({
       });
     },
 
-    sourceLost(tabId) {
+    sourceLost(tabId, nextUrl) {
       return runExclusive(async () => {
         await ensureRestored();
         if (state.phase === "capturing" && state.page.tabId === tabId) {
+          if (nextUrl !== undefined) {
+            try {
+              const next = new URL(nextUrl);
+              next.hash = "";
+              if (next.toString() === state.page.sourceUrl) return;
+            } catch {
+              // Malformed navigation still invalidates the captured source.
+            }
+          }
           await failCapture(
             "The page changed or closed during capture. Choose Import again.",
           );

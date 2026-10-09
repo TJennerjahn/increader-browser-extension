@@ -173,6 +173,7 @@ async function captureTransferFailure(
     // Stable local summaries never reflect a remote response body.
   }
   const retryable =
+    response.status === 401 ||
     response.status === 408 ||
     response.status === 429 ||
     response.status >= 500;

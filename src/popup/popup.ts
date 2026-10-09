@@ -272,6 +272,28 @@ export function mountPopup(
         </div>
       </section>
 
+          <div class="import-options" data-import-options hidden>
+            <label class="label" for="bookmark-title">
+              <span class="label-text">Bookmark title</span>
+            </label>
+            <input
+              class="input input-bordered"
+              id="bookmark-title"
+              name="bookmark-title"
+              type="text"
+              autocomplete="off"
+              maxlength="1024"
+              placeholder="Use the article title"
+            />
+            <label class="queue-option" for="add-to-queue">
+              <input id="add-to-queue" name="add-to-queue" type="checkbox" checked />
+              <span>Add to reading queue</span>
+            </label>
+            <p class="import-options-hint" data-retry-options-hint hidden>
+              Retry keeps the title and queue choice from the original import.
+            </p>
+          </div>
+
           <div class="page-actions">
             <button
               class="primary-action btn btn-primary"
@@ -433,6 +455,31 @@ export function mountPopup(
     root,
     "[data-discard]",
   ) as HTMLButtonElement;
+  const importOptions = requiredElement(
+    root,
+    "[data-import-options]",
+  ) as HTMLElement;
+  const titleInput = requiredElement(
+    root,
+    "#bookmark-title",
+  ) as HTMLInputElement;
+  const queueInput = requiredElement(root, "#add-to-queue") as HTMLInputElement;
+  const retryOptionsHint = requiredElement(
+    root,
+    "[data-retry-options-hint]",
+  ) as HTMLElement;
+  let optionsPageKey: string | null = null;
+  let titleWasEdited = false;
+  const renderImportOptions = (): void => {
+    importOptions.hidden = currentPage === null || existingBookmarkId !== null;
+    titleInput.disabled = importActive;
+    queueInput.disabled = importActive;
+    retryOptionsHint.hidden =
+      currentJobState.phase !== "failed" || currentJobState.captureId === null;
+  };
+  const onTitleInput = (): void => {
+    titleWasEdited = true;
+  };
   let disposed = false;
   let configuredOrigin = CLOUD_INSTANCE_ORIGIN;
   let connectionInteractionGeneration = 0;
@@ -457,6 +504,7 @@ export function mountPopup(
       existingBookmarkId !== null && readerOrigin !== null;
     importButton.hidden = hasOpenableBookmark;
     openReaderButton.hidden = !hasOpenableBookmark;
+    renderImportOptions();
   };
   const renderPageIconState = (
     state: "idle" | "loading" | "completed",
@@ -610,6 +658,13 @@ export function mountPopup(
       return;
     }
 
+    const inspectedPageKey = `${String(inspected.tabId)}:${inspected.sourceUrl}`;
+    if (optionsPageKey !== inspectedPageKey) {
+      optionsPageKey = inspectedPageKey;
+      titleWasEdited = false;
+      queueInput.checked = true;
+    }
+    if (!titleWasEdited) titleInput.value = inspected.title;
     currentPage = inspected;
     pageTitle.textContent = inspected.title || "Untitled page";
     pageSource.textContent = inspected.sourceUrl;
@@ -626,10 +681,7 @@ export function mountPopup(
     inspected: Extract<ActivePageInspection, { kind: "supported" }>,
     generation: number,
   ): Promise<void> => {
-    if (
-      pageDependencies === undefined ||
-      authenticatedDestination === null
-    ) {
+    if (pageDependencies === undefined || authenticatedDestination === null) {
       return;
     }
     const origin = authenticatedDestination.origin;
@@ -642,11 +694,7 @@ export function mountPopup(
         accessToken,
         inspected.sourceUrl,
       );
-      if (
-        isDisposed() ||
-        generation !== pageGeneration ||
-        importActive
-      ) {
+      if (isDisposed() || generation !== pageGeneration || importActive) {
         return;
       }
       if (result.exists && result.bookmarkId !== undefined) {
@@ -678,6 +726,7 @@ export function mountPopup(
     pageStatus.textContent = "Inspecting…";
     pageDetail.textContent = "";
     pageCanImport = false;
+    importOptions.hidden = true;
     pageFeedback.hidden = false;
     importButton.hidden = false;
     importButton.disabled = true;
@@ -840,8 +889,15 @@ export function mountPopup(
       return;
     }
     const expectedPage = currentPage;
+    const titleOverride = titleWasEdited ? titleInput.value.trim() : "";
+    const options = {
+      ...(titleOverride === "" ? {} : { titleOverride }),
+      addToQueue: queueInput.checked,
+    };
     const destinationOrigin = authenticatedDestination.origin;
     pageGeneration += 1;
+    importActive = true;
+    renderImportOptions();
     importButton.disabled = true;
     void pageDependencies.activePage
       .inspect()
@@ -867,6 +923,7 @@ export function mountPopup(
           return;
         }
         importActive = true;
+        renderImportOptions();
         renderPageIconState("loading");
         pageFeedback.hidden = true;
         root.dispatchEvent(
@@ -881,6 +938,7 @@ export function mountPopup(
           freshPage,
           destinationOrigin,
           false,
+          options,
         );
         if (started.status === "replacement-required") {
           const confirmed =
@@ -897,6 +955,7 @@ export function mountPopup(
             freshPage,
             destinationOrigin,
             true,
+            options,
           );
         }
         if (started.status !== "started") {
@@ -907,6 +966,7 @@ export function mountPopup(
       .catch((error: unknown) => {
         if (isDisposed()) return;
         importActive = false;
+        renderImportOptions();
         renderPageIconState("idle");
         pageFeedback.hidden = false;
         pageStatus.textContent = "Needs attention";
@@ -960,7 +1020,18 @@ export function mountPopup(
   };
 
   function renderJobState(next: CaptureJobState): void {
+    if (
+      next.phase === "completed" &&
+      (next.sourceUrl === undefined ||
+        currentPage?.sourceUrl !== next.sourceUrl ||
+        authenticatedDestination?.origin !== next.origin)
+    ) {
+      renderJobState({ phase: "ready" });
+      return;
+    }
     currentJobState = next;
+    importActive = next.phase === "capturing" || next.phase === "sending";
+    renderImportOptions();
     if (retryRevealTimeout !== null) {
       globalThis.clearTimeout(retryRevealTimeout);
       retryRevealTimeout = null;
@@ -1057,6 +1128,7 @@ export function mountPopup(
   googleSignInButton.addEventListener("click", onGoogleSignIn);
   forgotPasswordButton.addEventListener("click", onForgotPassword);
   signOutButton.addEventListener("click", onSignOut);
+  titleInput.addEventListener("input", onTitleInput);
   importButton.addEventListener("click", onImport);
   openReaderButton.addEventListener("click", onOpenReader);
   cancelButton.addEventListener("click", onCancel);
@@ -1125,6 +1197,7 @@ export function mountPopup(
     googleSignInButton.removeEventListener("click", onGoogleSignIn);
     forgotPasswordButton.removeEventListener("click", onForgotPassword);
     signOutButton.removeEventListener("click", onSignOut);
+    titleInput.removeEventListener("input", onTitleInput);
     importButton.removeEventListener("click", onImport);
     openReaderButton.removeEventListener("click", onOpenReader);
     cancelButton.removeEventListener("click", onCancel);

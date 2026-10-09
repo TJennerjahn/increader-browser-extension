@@ -21,10 +21,148 @@ import type { CaptureJobClient } from "../browser/capture-job-runtime";
 import { mountPopup } from "./popup";
 
 describe("compact Browser Capture popup", () => {
+  // Import options can be lost to late lookup/inspection, leak to a different
+  // source, or silently change an already authorized immutable retry package.
+  it("keeps edited import options through same-page refresh and late lookup", async () => {
+    const page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/options",
+      tabId: 23,
+      title: "Observed title",
+    };
+    const lookup = deferred<{ exists: boolean }>();
+    let refresh: (() => void) | undefined;
+    const startImport = vi.fn().mockResolvedValue({ status: "started" });
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport,
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+    mountPopup(root, authenticated(), {
+      activePage: {
+        inspect: () => Promise.resolve(page),
+        observe(listener) {
+          refresh = listener;
+          return () => undefined;
+        },
+      },
+      captureJob,
+      lookup: { lookup: () => lookup.promise },
+      openReader: vi.fn(),
+    });
+    await vi.waitFor(() => {
+      expect(
+        root.querySelector<HTMLInputElement>("#bookmark-title")?.value,
+      ).toBe("Observed title");
+    });
+    const title = getByRole<HTMLInputElement>(root, "textbox", {
+      name: "Bookmark title",
+    });
+    const queue = getByRole<HTMLInputElement>(root, "checkbox", {
+      name: "Add to reading queue",
+    });
+    expect(queue.checked).toBe(true);
+    fireEvent.input(title, { target: { value: "  My chosen title  " } });
+    fireEvent.click(queue);
+    refresh?.();
+    lookup.resolve({ exists: false });
+    await vi.waitFor(() => {
+      expect(
+        getByRole<HTMLButtonElement>(root, "button", { name: "Import" })
+          .disabled,
+      ).toBe(false);
+    });
+    expect(title.value).toBe("  My chosen title  ");
+    expect(queue.checked).toBe(false);
+    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+    await vi.waitFor(() => {
+      expect(startImport).toHaveBeenCalledWith(
+        page,
+        "https://reader.example",
+        false,
+        { titleOverride: "My chosen title", addToQueue: false },
+      );
+    });
+    expect(title.disabled).toBe(true);
+    expect(queue.disabled).toBe(true);
+  });
+
+  it("resets options for a new source and leaves an unedited title to extraction", async () => {
+    let page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/first",
+      tabId: 23,
+      title: "First title",
+    };
+    let refresh: (() => void) | undefined;
+    const startImport = vi.fn().mockResolvedValue({ status: "started" });
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport,
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe: () => () => undefined,
+    };
+    const root = document.createElement("main");
+    mountPopup(root, authenticated(), {
+      activePage: {
+        inspect: () => Promise.resolve(page),
+        observe(listener) {
+          refresh = listener;
+          return () => undefined;
+        },
+      },
+      captureJob,
+      lookup: { lookup: () => Promise.resolve({ exists: false }) },
+      openReader: vi.fn(),
+    });
+    await vi.waitFor(() => {
+      expect(
+        root.querySelector<HTMLInputElement>("#bookmark-title")?.value,
+      ).toBe("First title");
+    });
+    fireEvent.input(getByRole(root, "textbox", { name: "Bookmark title" }), {
+      target: { value: "Custom" },
+    });
+    fireEvent.click(
+      getByRole(root, "checkbox", { name: "Add to reading queue" }),
+    );
+    page = {
+      kind: "supported",
+      sourceUrl: "https://example.com/second",
+      tabId: 23,
+      title: "Second title",
+    };
+    refresh?.();
+    await vi.waitFor(() => {
+      expect(
+        getByRole<HTMLInputElement>(root, "textbox", { name: "Bookmark title" })
+          .value,
+      ).toBe("Second title");
+    });
+    expect(
+      getByRole<HTMLInputElement>(root, "checkbox", {
+        name: "Add to reading queue",
+      }).checked,
+    ).toBe(true);
+    fireEvent.click(getByRole(root, "button", { name: "Import" }));
+    await vi.waitFor(() => {
+      expect(startImport).toHaveBeenCalledWith(
+        page,
+        "https://reader.example",
+        false,
+        { addToQueue: true },
+      );
+    });
+  });
+
   it("does not flash sign-in while loading a stored account", async () => {
-    const current = deferred<
-      Awaited<ReturnType<Authentication["current"]>>
-    >();
+    const current = deferred<Awaited<ReturnType<Authentication["current"]>>>();
     const authentication = authenticated();
     authentication.current = () => current.promise;
     const root = document.createElement("main");
@@ -221,9 +359,8 @@ describe("compact Browser Capture popup", () => {
 
   it("offers Google sign-in only for Increader Cloud", async () => {
     const authentication = signedOut();
-    const googleResult = deferred<
-      Awaited<ReturnType<Authentication["signInWithGoogle"]>>
-    >();
+    const googleResult =
+      deferred<Awaited<ReturnType<Authentication["signInWithGoogle"]>>>();
     const signInWithGoogle = vi
       .spyOn(authentication, "signInWithGoogle")
       .mockReturnValue(googleResult.promise);
@@ -238,9 +375,9 @@ describe("compact Browser Capture popup", () => {
     await vi.waitFor(() => {
       expect(signInWithGoogle).toHaveBeenCalledOnce();
     });
-    expect(root.querySelector<HTMLElement>("[data-auth-feedback]")?.hidden).toBe(
-      true,
-    );
+    expect(
+      root.querySelector<HTMLElement>("[data-auth-feedback]")?.hidden,
+    ).toBe(true);
 
     googleResult.resolve({
       displayName: "google-reader@example.com",
@@ -369,8 +506,7 @@ describe("compact Browser Capture popup", () => {
       openReader: vi.fn(),
     });
 
-    const importButton =
-      root.querySelector<HTMLButtonElement>("[data-import]");
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
     await vi.waitFor(() => {
       expect(importButton?.disabled).toBe(false);
     });
@@ -482,8 +618,7 @@ describe("compact Browser Capture popup", () => {
       openReader: vi.fn(),
     });
 
-    const importButton =
-      root.querySelector<HTMLButtonElement>("[data-import]");
+    const importButton = root.querySelector<HTMLButtonElement>("[data-import]");
     await vi.waitFor(() => {
       expect(importButton?.disabled).toBe(false);
     });
@@ -734,6 +869,7 @@ describe("compact Browser Capture popup", () => {
         page,
         "https://reader.example",
         false,
+        { addToQueue: true },
       );
     });
     expect(pageIcon?.dataset.state).toBe("loading");
@@ -767,6 +903,7 @@ describe("compact Browser Capture popup", () => {
       bookmarkId: 84,
       title: "Extracted article",
       origin: "https://reader.example",
+      sourceUrl: page.sourceUrl,
     });
     await vi.waitFor(() => {
       expect(getByRole(root, "button", { name: "Open bookmark" })).toBeTruthy();
@@ -788,6 +925,91 @@ describe("compact Browser Capture popup", () => {
       );
       expect(closePopup).toHaveBeenCalledOnce();
     });
+  });
+
+  it("keeps completed imports bound to their source and instance as the active page changes", async () => {
+    let page: ActivePageInspection = {
+      kind: "supported",
+      sourceUrl: "https://example.com/first",
+      tabId: 24,
+      title: "First article",
+    };
+    let refresh: (() => void) | undefined;
+    let publish:
+      | ((state: Awaited<ReturnType<CaptureJobClient["current"]>>) => void)
+      | undefined;
+    const captureJob: CaptureJobClient = {
+      current: () => Promise.resolve({ phase: "ready" }),
+      startImport: vi.fn(),
+      retry: vi.fn(),
+      cancel: vi.fn(),
+      discard: vi.fn(),
+      observe(listener) {
+        publish = listener;
+        return () => undefined;
+      },
+    };
+    const root = document.createElement("main");
+    mountPopup(root, authenticated(), {
+      activePage: {
+        inspect: () => Promise.resolve(page),
+        observe(listener) {
+          refresh = listener;
+          return () => undefined;
+        },
+      },
+      captureJob,
+      lookup: { lookup: () => Promise.resolve({ exists: false }) },
+      openReader: vi.fn(),
+    });
+    await vi.waitFor(() => {
+      expect(root.querySelector("[data-page-title]")?.textContent).toBe(
+        "First article",
+      );
+    });
+    const completed = {
+      phase: "completed" as const,
+      captureId: "completed-first",
+      outcome: "created" as const,
+      bookmarkId: 84,
+      title: "First article",
+      origin: "https://reader.example",
+      sourceUrl: "https://example.com/first",
+    };
+    publish?.(completed);
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(false);
+    page = {
+      kind: "supported",
+      sourceUrl: "https://example.com/second",
+      tabId: 24,
+      title: "Second article",
+    };
+    refresh?.();
+    await vi.waitFor(() => {
+      expect(root.querySelector("[data-page-title]")?.textContent).toBe(
+        "Second article",
+      );
+    });
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      false,
+    );
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
+    publish?.(completed);
+    publish?.({
+      ...completed,
+      sourceUrl: page.sourceUrl,
+      origin: "https://different-instance.example",
+    });
+    expect(root.querySelector<HTMLButtonElement>("[data-import]")?.hidden).toBe(
+      false,
+    );
+    expect(
+      root.querySelector<HTMLButtonElement>("[data-open-reader]")?.hidden,
+    ).toBe(true);
   });
 
   it("does not restore the last completed Bookmark after the popup reopens", async () => {
@@ -932,12 +1154,14 @@ describe("compact Browser Capture popup", () => {
         page,
         "https://reader.example",
         false,
+        { addToQueue: true },
       );
       expect(startImport).toHaveBeenNthCalledWith(
         2,
         page,
         "https://reader.example",
         true,
+        { addToQueue: true },
       );
     });
   });

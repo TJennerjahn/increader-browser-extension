@@ -1,11 +1,11 @@
 {
   "sourceRepository": "TJennerjahn/Increader",
-  "sourceCommit": "5920efe853cddd10b220f10f3460c7f0a5673417",
+  "sourceCommit": "0a7556d0a7572eda7c527db6a82b2a913819b5e6",
   "generator": "openapi-typescript@7.13.0",
   "files": {
-    "browser-capture.openapi.yaml": "40374919db72ec05c8ee8eeb822b1b8a0b1c46608fe96bd9c9e53b84d2c29618",
+    "browser-capture.openapi.yaml": "3e995892abeda876379040e262cbc4bfb16b9fd7094583a784b3881accf03775",
     "fixtures/bookmark-lookup.valid.json": "09075f223c7fc84109d0c9b9734349e890a5db5cae80f08d6293292cba983e91",
-    "fixtures/capture-package.valid.json": "6082ab6e1ede2dd3f3f3d1e18b4f7d06bf3b5b0f810d2c76906a1a26130ee273",
-    "fixtures/capture-package-images.valid.json": "94503e5370d143bb968f80273e9ffac0c269f2d2a17d9ff23bbb950d8cdd9bc6"
+    "fixtures/capture-package.valid.json": "1d046ce859d64d287720ed4cce98954a45ffb74e10b92f7ebd925d1ec3735214",
+    "fixtures/capture-package-images.valid.json": "322375ba816644eada1b11f2e666493a63274b4c1b4b218fa5d87899c533a393"
   }
 }
